@@ -1,0 +1,353 @@
+basePath: /api/v1
+definitions:
+  models.Booking:
+    properties:
+      id:
+        type: string
+      passenger_id:
+        type: string
+      seats:
+        type: integer
+      status:
+        type: string
+      trip_id:
+        type: string
+    type: object
+  models.BookingCreateRequest:
+    properties:
+      seats:
+        type: integer
+      trip_id:
+        type: string
+    required:
+    - seats
+    - trip_id
+    type: object
+  models.Trip:
+    properties:
+      departure_at:
+        type: string
+      driver_id:
+        type: string
+      from_city:
+        type: string
+      id:
+        type: string
+      price_per_seat:
+        type: number
+      seats_available:
+        type: integer
+      seats_total:
+        type: integer
+      to_city:
+        type: string
+    type: object
+  models.TripCreateRequest:
+    properties:
+      departure_at:
+        type: string
+      from_city:
+        type: string
+      price_per_seat:
+        minimum: 0
+        type: number
+      seats_total:
+        type: integer
+      to_city:
+        type: string
+    required:
+    - departure_at
+    - from_city
+    - price_per_seat
+    - seats_total
+    - to_city
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+    type: object
+  models.UserCreateRequest:
+    properties:
+      email:
+        type: string
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      password:
+        minLength: 6
+        type: string
+      role:
+        enum:
+        - driver
+        - passenger
+        type: string
+    required:
+    - email
+    - name
+    - password
+    - role
+    type: object
+  models.UserLoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API для поиска и бронирования трансферов.
+  title: Transfer Service API
+  version: "1.0"
+paths:
+  /bookings:
+    post:
+      consumes:
+      - application/json
+      description: Создает новую бронь на поездку. Доступно только для пассажиров.
+      parameters:
+      - description: Данные бронирования
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.BookingCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Booking'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Забронировать поездку
+      tags:
+      - bookings
+  /bookings/{id}:
+    delete:
+      description: Отменяет бронь и возвращает места обратно в поездку. Доступно только
+        для пассажиров.
+      parameters:
+      - description: ID брони (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Отменить бронь
+      tags:
+      - bookings
+  /bookings/my:
+    get:
+      description: Возвращает список всех броней текущего авторизованного пассажира.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Booking'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Мои бронирования
+      tags:
+      - bookings
+  /trips:
+    get:
+      description: Возвращает список поездок с возможностью фильтрации по городам.
+      parameters:
+      - description: Город отправления (например, Berlin)
+        in: query
+        name: from
+        type: string
+      - description: Город прибытия (например, Warsaw)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Trip'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Получить список поездок
+      tags:
+      - trips
+    post:
+      consumes:
+      - application/json
+      description: Добавляет новую поездку. Доступно только для водителей.
+      parameters:
+      - description: Данные поездки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.TripCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Trip'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Создать поездку
+      tags:
+      - trips
+  /users/:
+    post:
+      consumes:
+      - application/json
+      description: Создает нового пользователя (водителя или пассажира).
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+      summary: Регистрация нового пользователя
+      tags:
+      - users
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: Возвращает JWT токен для доступа к защищенным маршрутам.
+      parameters:
+      - description: Email и пароль
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Пример: {"token": "eyJ..."}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      summary: Вход в систему
+      tags:
+      - users
+securityDefinitions:
+  Bearer:
+    description: Введите "Bearer " (с пробелом) и затем ваш JWT токен.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

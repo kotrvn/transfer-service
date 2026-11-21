@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # Наша база данных
+  db:
+    image: postgres:16
+    container_name: transfer-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: transfer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d transfer_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Наше API
+  api:
+    build: .
+    container_name: transfer-api
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      # ВАЖНО: обращаемся к базе по имени сервиса "db", а не localhost!
+      - DATABASE_URL=postgres://postgres:secret@db:5432/transfer_db?sslmode=disable
+      - JWT_SECRET=super_secret_key_change_me_in_production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
