@@ -1,6 +1,10 @@
 package models
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Booking struct {
 	ID          uuid.UUID `json:"id"`
@@ -8,6 +12,7 @@ type Booking struct {
 	PassengerID uuid.UUID `json:"passenger_id"`
 	Seats       int       `json:"seats"`
 	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type BookingCreateRequest struct {

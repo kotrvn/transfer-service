@@ -1,15 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"transfer-service/internal/api/handlers"
 	"transfer-service/internal/api/middleware"
 	"transfer-service/internal/config"
 	"transfer-service/internal/db"
 	"transfer-service/internal/repository"
+	"transfer-service/internal/worker"
 
 	_ "transfer-service/docs" // Важно: импортируем сгенерированные доки
 
@@ -73,10 +79,27 @@ func main() {
 		})
 	})
 
+	// --- ЗАПУСК ВОРКЕРА ---
+	// Создаем контекст, который отменится при нажатии Ctrl+C
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Запускаем воркер в отдельной горутине (он не блокирует сервер)
+	go worker.StartBookingCleanupWorker(ctx, bookingRepo, 1*time.Minute, 15*time.Minute)
+
+	// --- ЗАПУСК СЕРВЕРА ---
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("🌍 Сервер запущен на http://localhost%s\n", addr)
 
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("Ошибка запуска сервера: %v\n", err)
-	}
+	// Запускаем сервер в горутине, чтобы он не блокировал ожидание Ctrl+C
+	go func() {
+		if err := http.ListenAndServe(addr, r); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Ошибка запуска сервера: %v\n", err)
+		}
+	}()
+
+	// Ждем сигнала на выключение (Ctrl+C)
+	<-ctx.Done()
+	log.Println("Получен сигнал завершения, выключаем сервер...")
+
 }

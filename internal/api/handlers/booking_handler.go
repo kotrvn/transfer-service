@@ -64,7 +64,7 @@ func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		TripID:      req.TripID,
 		PassengerID: passengerID,
 		Seats:       req.Seats,
-		Status:      "confirmed",
+		Status:      "pending",
 	}
 
 	// 5. Сохраняем (с обработкой кастомных ошибок)

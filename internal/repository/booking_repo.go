@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 	"transfer-service/internal/models"
 
 	"github.com/google/uuid"
@@ -125,4 +127,53 @@ func (r *BookingRepository) Cancel(ctx context.Context, bookingID uuid.UUID, pas
 
 	// 5. Фиксируем
 	return tx.Commit(ctx)
+}
+
+func (r *BookingRepository) CleanupExpired(ctx context.Context, expireAfter time.Duration) (int, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	// Передаем время как параметр, чтобы легко менять в тестах
+	intervalStr := fmt.Sprintf("%d seconds", int(expireAfter.Seconds()))
+	query := `
+		UPDATE bookings 
+		SET status = 'cancelled' 
+		WHERE status = 'pending' AND created_at < NOW() - $1::interval
+		RETURNING trip_id, seats
+	`
+	rows, err := tx.Query(ctx, query, intervalStr)
+	if err != nil {
+		return 0, err
+	}
+
+	type cancelled struct {
+		tripID uuid.UUID
+		seats  int
+	}
+	var items []cancelled
+
+	for rows.Next() {
+		var c cancelled
+		if err := rows.Scan(&c.tripID, &c.seats); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		items = append(items, c)
+	}
+	rows.Close()
+
+	for _, c := range items {
+		_, err := tx.Exec(ctx, `UPDATE trips SET seats_available = seats_available + $1 WHERE id = $2`, c.seats, c.tripID)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return len(items), nil
 }
