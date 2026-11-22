@@ -1,20 +1,26 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"transfer-service/internal/auth"
 	"transfer-service/internal/models"
-	"transfer-service/internal/repository"
 	"uuid"
 )
 
+// Создаем интерфейс (описание того, что должен уметь репозиторий)
+type UserRepo interface {
+	Create(ctx context.Context, user *models.User) error
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+}
+
 type UserHandler struct {
-	repo      *repository.UserRepository
+	repo      UserRepo
 	jwtSecret string
 }
 
-func NewUserHandler(repo *repository.UserRepository, secret string) *UserHandler {
+func NewUserHandler(repo UserRepo, secret string) *UserHandler {
 	return &UserHandler{repo: repo, jwtSecret: secret}
 }
 

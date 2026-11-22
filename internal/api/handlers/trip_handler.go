@@ -1,21 +1,26 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"transfer-service/internal/api/middleware"
 	"transfer-service/internal/models"
-	"transfer-service/internal/repository"
 
 	"github.com/google/uuid"
 )
 
-type TripHandler struct {
-	repo *repository.TripRepository
+type TripRepo interface {
+	Create(ctx context.Context, trip *models.Trip) error
+	List(ctx context.Context, fromCity, toCity string) ([]*models.Trip, error)
 }
 
-func NewTripHandler(repo *repository.TripRepository) *TripHandler {
+type TripHandler struct {
+	repo TripRepo
+}
+
+func NewTripHandler(repo TripRepo) *TripHandler {
 	return &TripHandler{repo: repo}
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,11 +14,17 @@ import (
 	"github.com/google/uuid"
 )
 
-type BookingHandler struct {
-	repo *repository.BookingRepository
+type BookingRepo interface {
+	Create(ctx context.Context, booking *models.Booking) error
+	GetByPassengerID(ctx context.Context, passengerID uuid.UUID) ([]*models.Booking, error)
+	Cancel(ctx context.Context, bookingID uuid.UUID, passengerID uuid.UUID) error
 }
 
-func NewBookingHandler(repo *repository.BookingRepository) *BookingHandler {
+type BookingHandler struct {
+	repo BookingRepo
+}
+
+func NewBookingHandler(repo BookingRepo) *BookingHandler {
 	return &BookingHandler{repo: repo}
 }
 
