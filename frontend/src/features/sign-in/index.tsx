@@ -1,17 +1,18 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { type FormEvent, useRef, useState } from "react";
 
+import { readSession, roleLabels, type Role, useSession } from "../../entities/session";
 import { api, loginErrorMessage } from "../../shared/api";
 import styles from "./sign-in.module.scss";
-
-const roleLabels = { passenger: "Пассажир", driver: "Водитель" } as const;
-type Role = keyof typeof roleLabels;
 
 type Errors = Partial<Record<"role" | "email" | "password", string>>;
 
 export function SignInForm() {
+  const router = useRouter();
+  const setSession = useSession((state) => state.setSession);
   const [role, setRole] = useState<Role>();
   const [errors, setErrors] = useState<Errors>({});
   const [message, setMessage] = useState("");
@@ -19,7 +20,9 @@ export function SignInForm() {
 
   const { mutateAsync, isPending, reset } = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      await api.post("/api/auth/login", credentials);
+      const response = await api.post<{ token?: unknown }>("/api/auth/login", credentials);
+      const token = response.data?.token;
+      return typeof token === "string" ? readSession(token) : null;
     },
     retry: false,
     networkMode: "always",
@@ -50,9 +53,16 @@ export function SignInForm() {
 
     submitting.current = true;
     try {
-      await mutateAsync({ email, password });
-      passwordInput.value = "";
-      setMessage("Данные подтверждены. Сессия появится на следующем этапе");
+      const session = await mutateAsync({ email, password });
+      if (!session) {
+        setMessage("Не удалось проверить сессию. Попробуйте ещё раз");
+      } else if (session.role !== role) {
+        setMessage("Этот аккаунт зарегистрирован с другой ролью");
+      } else {
+        passwordInput.value = "";
+        setSession(session);
+        router.replace("/account");
+      }
     } catch (error) {
       setMessage(loginErrorMessage(error));
     } finally {

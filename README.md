@@ -22,3 +22,5 @@ HTTP API на Go для поиска поездок и бронирования 
 ## Локальный запуск фронтенда
 
 Используйте Node.js 24. Из каталога `frontend/` выполните `npm ci` и `npm run dev`, затем откройте `http://localhost:3000/login`. Для проверок там же доступны `npm run lint`, `npm run typecheck` и `npm run build`.
+
+Для входа запустите Go API и используйте учётную запись, созданную через `POST /api/v1/users/`. Если API работает на другом адресе, скопируйте `frontend/.env.example` в `frontend/.env.local` и задайте `API_BASE_URL`. Сессия хранится в памяти и сбрасывается при обновлении страницы.
