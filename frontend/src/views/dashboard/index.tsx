@@ -4,12 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useSession } from "../../entities/session";
-import { driverTripsKey, listDriverTrips } from "../../entities/trip";
+import { driverTripsKey, listDriverTrips, tripDateFormat, tripPriceFormat } from "../../entities/trip";
 import { CreateTripDialog } from "../../features/create-trip";
 import styles from "./dashboard.module.scss";
-
-const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" });
-const priceFormat = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
+import { PassengerDashboard } from "./passenger";
 
 function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
   const [creating, setCreating] = useState(false);
@@ -45,9 +43,9 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
                 {trips.data.map((trip) => (
                   <tr key={trip.id}>
                     <th scope="row">{trip.from_city} → {trip.to_city}</th>
-                    <td>{dateFormat.format(new Date(trip.departure_at))}</td>
+                    <td>{tripDateFormat.format(new Date(trip.departure_at))}</td>
                     <td>{trip.seats_available} / {trip.seats_total}</td>
-                    <td>{priceFormat.format(trip.price_per_seat)}</td>
+                    <td>{tripPriceFormat.format(trip.price_per_seat)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -62,6 +60,6 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
 export function DashboardView() {
   const session = useSession((state) => state.session);
   if (!session) return null;
-  if (session.role !== "driver") return <h1 className={styles.title}>Кабинет пассажира</h1>;
+  if (session.role === "passenger") return <PassengerDashboard userId={session.userId} token={session.token} />;
   return <DriverTrips driverId={session.userId} token={session.token} />;
 }

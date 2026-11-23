@@ -71,3 +71,12 @@
 @media (max-width: 26rem) {
   .fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  font-size: var(--font-size-label);
+}

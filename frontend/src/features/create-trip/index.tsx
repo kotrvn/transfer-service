@@ -6,7 +6,7 @@ import { type FormEvent, useEffect, useRef } from "react";
 
 import { useSession } from "../../entities/session";
 import { createTrip, driverTripsKey } from "../../entities/trip";
-import styles from "./create-trip.module.scss";
+import styles from "../../shared/ui/trip-dialog/trip-dialog.module.scss";
 
 export function CreateTripDialog({ driverId, token, onDismiss }: {
   driverId: string;

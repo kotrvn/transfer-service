@@ -10,6 +10,13 @@ async function forward(method: "GET" | "POST", request: Request) {
 
   try {
     const url = new URL("/api/v1/trips", process.env.API_BASE_URL || "http://localhost:8080");
+    if (method === "GET") {
+      const search = new URL(request.url).searchParams;
+      for (const field of ["from", "to"]) {
+        const value = search.get(field);
+        if (value) url.searchParams.set(field, value);
+      }
+    }
     const upstream = await fetch(url, {
       method,
       headers: method === "POST"

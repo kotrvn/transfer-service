@@ -8,19 +8,25 @@ export type TripDraft = {
   price_per_seat: number;
 };
 
-type Trip = TripDraft & {
+export type Trip = TripDraft & {
   id: string;
   driver_id: string;
   seats_available: number;
 };
 
 export const driverTripsKey = (driverId: string) => ["trips", "driver", driverId] as const;
+export const tripSearchKey = (from: string, to: string) => ["trips", "search", from, to] as const;
+export const tripDateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" });
+export const tripPriceFormat = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
+
+export async function listTrips(from: string, to: string, signal: AbortSignal) {
+  const { data } = await api.get<Trip[]>("/api/trips", { params: { from, to }, signal });
+  return data
+    .sort((first, second) => Date.parse(first.departure_at) - Date.parse(second.departure_at));
+}
 
 export async function listDriverTrips(userId: string, signal: AbortSignal) {
-  const { data } = await api.get<Trip[]>("/api/trips", { signal });
-  return data
-    .filter((trip) => trip.driver_id === userId)
-    .sort((first, second) => Date.parse(first.departure_at) - Date.parse(second.departure_at));
+  return (await listTrips("", "", signal)).filter((trip) => trip.driver_id === userId);
 }
 
 export async function createTrip(draft: TripDraft, token: string) {
