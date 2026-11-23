@@ -57,7 +57,7 @@ export function SignInForm() {
       } else {
         passwordInput.value = "";
         setSession(session);
-        router.replace("/account");
+        router.replace("/dashboard");
       }
     } catch (error) {
       setMessage(loginErrorMessage(error));

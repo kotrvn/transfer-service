@@ -1,0 +1,73 @@
+.dialog {
+  width: min(34rem, calc(100% - var(--space-6)));
+  max-height: calc(100dvh - var(--space-6));
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text);
+
+  &::backdrop { background: rgb(24 36 59 / 48%); }
+  h2 { margin: 0 0 var(--space-4); }
+}
+
+.form p {
+  color: var(--color-error);
+  margin: var(--space-3) 0 0;
+}
+
+.fields {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+
+  label { font-size: var(--font-size-label); }
+  input {
+    display: block;
+    min-width: 0;
+    width: 100%;
+    min-height: var(--control-height);
+    margin-top: var(--space-1);
+    padding: var(--space-2);
+    border: var(--border-width) solid var(--color-border-control);
+    border-radius: var(--radius-control);
+    color: var(--color-text);
+    background: var(--color-surface);
+  }
+}
+
+.full { grid-column: 1 / -1; }
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+
+  button {
+    min-height: var(--control-height);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width) solid var(--color-border-control);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  button[type="submit"] {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+
+  button:disabled { opacity: .65; cursor: wait; }
+}
+
+@media (max-width: 26rem) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+}

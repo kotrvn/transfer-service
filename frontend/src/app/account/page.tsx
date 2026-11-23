@@ -1,5 +1,5 @@
-import { AccountView } from "../../views/account";
+import { redirect } from "next/navigation";
 
-export default function AccountPage() {
-  return <AccountView />;
+export default function DashboardRedirect() {
+  redirect("/dashboard");
 }
