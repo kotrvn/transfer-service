@@ -1,0 +1,36 @@
+.screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.card {
+  width: 100%;
+  max-width: var(--login-card-width);
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.brand {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-label);
+}
+
+.title {
+  margin: 0 0 var(--space-5);
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+}
+
+@media (max-width: 30rem) {
+  .card {
+    padding: var(--space-5);
+  }
+}
