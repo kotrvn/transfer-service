@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light;
+
+  --color-background: #f3f5f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #edf1f5;
+  --color-text: #18243b;
+  --color-text-muted: #516176;
+  --color-border: #dce3eb;
+  --color-border-control: #7c8a9d;
+
+  --color-accent: #005bdb;
+  --color-accent-hover: #004fc3;
+  --color-accent-active: #00419f;
+  --color-accent-subtle: #eaf2ff;
+  --color-on-accent: #ffffff;
+  --color-error: #a61b1b;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-size-label: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-title: 1.75rem;
+  --line-height-label: 1.25rem;
+  --line-height-body: 1.5rem;
+  --line-height-title: 2.125rem;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-control: 0.375rem;
+  --radius-card: 0.5rem;
+  --border-width: 1px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --control-height: 2.75rem;
+  --login-card-width: 27.5rem;
+  --shadow-card: 0 4px 16px rgb(24 36 59 / 6%);
+
+  --motion-fast: 100ms;
+  --motion-standard: 150ms;
+  --motion-easing: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-standard: 0ms;
+  }
+}
