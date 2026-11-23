@@ -1,0 +1,52 @@
+#!/bin/sh
+set -eu
+
+fail() {
+  printf 'Pre-push: %s\n' "$1" >&2
+  exit 1
+}
+
+cd "$(git rev-parse --show-toplevel)"
+head=$(git rev-parse HEAD)
+has_updates=false
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  if [ "$local_ref" = "(delete)" ]; then
+    [ "$remote_ref" != refs/heads/main ] || fail "Удаление ветки main запрещено."
+    continue
+  fi
+  [ "$(git rev-parse "$local_oid^{commit}")" = "$head" ] ||
+    fail "Переключитесь на отправляемый коммит, чтобы проверить его содержимое."
+  if [ "$remote_ref" = refs/heads/main ] && git cat-file -e "$remote_oid^{commit}" 2>/dev/null; then
+    deleted_migrations=$(git diff --no-renames --name-only --diff-filter=D "$remote_oid" "$head" -- migrations/)
+    [ -z "$deleted_migrations" ] || fail "Удалены существующие SQL-миграции: $deleted_migrations"
+  fi
+  has_updates=true
+done
+
+[ "$has_updates" = true ] || exit 0
+[ -z "$(git status --porcelain)" ] || fail "Рабочее дерево должно быть чистым, чтобы проверялся именно отправляемый коммит."
+
+for file in AGENTS.md Makefile go.mod go.sum cmd/api/main.go Dockerfile docker-compose.yml \
+  .github/workflows/ci.yml .githooks/pre-push frontend/.nvmrc frontend/package.json \
+  frontend/package-lock.json frontend/tsconfig.json frontend/src/app/layout.tsx; do
+  [ -f "$file" ] || fail "Отсутствует критичный файл: $file"
+done
+
+if ! command -v npm >/dev/null 2>&1; then
+  nvm_script="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+  [ -r "$nvm_script" ] || fail "Нужны Node.js и npm. Версия Node.js указана в frontend/.nvmrc."
+  set +u
+  . "$nvm_script" --no-use
+  nvm use "$(cat frontend/.nvmrc)"
+  set -u
+fi
+
+make check
+(
+  cd frontend
+  npm run lint
+  npm run typecheck
+  npm run build
+)
+make smoke
