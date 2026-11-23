@@ -6,7 +6,7 @@ import { type FormEvent, useRef, useState } from "react";
 
 import { readSession, roleLabels, type Role, useSession } from "../../entities/session";
 import { api, loginErrorMessage } from "../../shared/api";
-import styles from "./sign-in.module.scss";
+import styles from "../../shared/ui/auth-form/auth-form.module.scss";
 
 type Errors = Partial<Record<"role" | "email" | "password", string>>;
 
