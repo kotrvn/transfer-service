@@ -1,7 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
 
+import { api, loginErrorMessage } from "../../shared/api";
 import styles from "./sign-in.module.scss";
 
 const roleLabels = { passenger: "Пассажир", driver: "Водитель" } as const;
@@ -15,7 +17,14 @@ export function SignInForm() {
   const [message, setMessage] = useState("");
   const submitting = useRef(false);
 
-  const [isPending, setIsPending] = useState(false);
+  const { mutateAsync, isPending, reset } = useMutation({
+    mutationFn: async (credentials: { email: string; password: string }) => {
+      await api.post("/api/auth/login", credentials);
+    },
+    retry: false,
+    networkMode: "always",
+    gcTime: 0,
+  });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,12 +49,14 @@ export function SignInForm() {
     }
 
     submitting.current = true;
-    setIsPending(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      setMessage("Вход станет доступен после подключения API");
+      await mutateAsync({ email, password });
+      passwordInput.value = "";
+      setMessage("Данные подтверждены. Сессия появится на следующем этапе");
+    } catch (error) {
+      setMessage(loginErrorMessage(error));
     } finally {
-      setIsPending(false);
+      reset();
       submitting.current = false;
     }
   }
