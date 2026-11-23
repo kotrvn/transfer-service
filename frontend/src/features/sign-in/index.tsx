@@ -4,16 +4,15 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useRef, useState } from "react";
 
-import { readSession, roleLabels, type Role, useSession } from "../../entities/session";
+import { readSession, useSession } from "../../entities/session";
 import { api, loginErrorMessage } from "../../shared/api";
 import styles from "../../shared/ui/auth-form/auth-form.module.scss";
 
-type Errors = Partial<Record<"role" | "email" | "password", string>>;
+type Errors = Partial<Record<"email" | "password", string>>;
 
 export function SignInForm() {
   const router = useRouter();
   const setSession = useSession((state) => state.setSession);
-  const [role, setRole] = useState<Role>();
   const [errors, setErrors] = useState<Errors>({});
   const [message, setMessage] = useState("");
   const submitting = useRef(false);
@@ -39,13 +38,12 @@ export function SignInForm() {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     const nextErrors: Errors = {};
-    if (!role) nextErrors.role = "Выберите роль";
     if (!email || emailInput.validity.typeMismatch) nextErrors.email = "Введите корректный email";
     if (!password) nextErrors.password = "Введите пароль";
 
     setErrors(nextErrors);
     setMessage("");
-    if (!role || nextErrors.email || nextErrors.password) {
+    if (nextErrors.email || nextErrors.password) {
       const firstInvalid = Object.keys(nextErrors)[0];
       form.querySelector<HTMLInputElement>(`input[name="${firstInvalid}"]`)?.focus();
       return;
@@ -56,8 +54,6 @@ export function SignInForm() {
       const session = await mutateAsync({ email, password });
       if (!session) {
         setMessage("Не удалось проверить сессию. Попробуйте ещё раз");
-      } else if (session.role !== role) {
-        setMessage("Этот аккаунт зарегистрирован с другой ролью");
       } else {
         passwordInput.value = "";
         setSession(session);
@@ -73,35 +69,6 @@ export function SignInForm() {
 
   return (
     <form className={styles.form} method="post" onSubmit={submit} noValidate>
-      <fieldset
-        className={styles.roleGroup}
-        disabled={isPending}
-        aria-invalid={!!errors.role}
-        aria-describedby={errors.role ? "role-error" : undefined}
-      >
-        <legend className={styles.label}>Роль</legend>
-        <div className={styles.roles}>
-          {(Object.keys(roleLabels) as Role[]).map((option) => (
-            <label className={styles.role} key={option}>
-              <input
-                type="radio"
-                name="role"
-                value={option}
-                checked={role === option}
-                required
-                aria-describedby={errors.role ? "role-error" : undefined}
-                onChange={() => {
-                  setRole(option);
-                  setErrors((current) => ({ ...current, role: undefined }));
-                }}
-              />
-              {roleLabels[option]}
-            </label>
-          ))}
-        </div>
-        {errors.role && <p className={styles.error} id="role-error">{errors.role}</p>}
-      </fieldset>
-
       <div>
         <label className={styles.label} htmlFor="email">Email</label>
         <input
