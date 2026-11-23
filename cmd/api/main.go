@@ -17,7 +17,7 @@ import (
 	"transfer-service/internal/repository"
 	"transfer-service/internal/worker"
 
-	_ "transfer-service/docs" // Важно: импортируем сгенерированные доки
+	_ "transfer-service/docs/api" // Регистрирует сгенерированную спецификацию Swagger.
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"

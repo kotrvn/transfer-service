@@ -54,7 +54,7 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 			userID, _ := claims["sub"].(string)
 			userRole, _ := claims["role"].(string)
 
-			// 4. Кладем данные в контекст запроса (как Depends в FastAPI)
+			// 4. Кладем данные в контекст запроса
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
 			ctx = context.WithValue(ctx, UserRoleKey, userRole)
 

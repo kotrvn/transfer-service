@@ -371,6 +371,9 @@
         "models.Booking": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },

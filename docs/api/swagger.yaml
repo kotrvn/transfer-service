@@ -2,6 +2,8 @@ basePath: /api/v1
 definitions:
   models.Booking:
     properties:
+      created_at:
+        type: string
       id:
         type: string
       passenger_id:

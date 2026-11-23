@@ -1,11 +1,5 @@
-# Python
-__pycache__/
-*.py[cod]
-*.so
-
-# Environments
-.venv/
-venv/
+# Go test artifacts
+/coverage.txt
 
 # Secrets
 .env
