@@ -62,21 +62,6 @@ func (s *Stripe) Checkout(ctx context.Context, id uuid.UUID, amount int64) (stri
 	return session.URL, err
 }
 
-func (s *Stripe) Refund(ctx context.Context, intent string) error {
-	var refund struct {
-		Status string `json:"status"`
-	}
-	err := s.post(ctx, "/refunds", "late-booking-"+intent, url.Values{"payment_intent": {intent}}, &refund)
-	var failure *stripeError
-	if errors.As(err, &failure) && failure.Code == "charge_already_refunded" {
-		return nil
-	}
-	if err == nil && refund.Status != "succeeded" && refund.Status != "pending" {
-		return fmt.Errorf("Stripe вернул статус возврата %q", refund.Status)
-	}
-	return err
-}
-
 type stripeError struct {
 	Code   string `json:"code"`
 	Status int    `json:"-"`
@@ -87,13 +72,19 @@ func (e *stripeError) Error() string {
 }
 
 func (s *Stripe) post(ctx context.Context, path, key string, form url.Values, result any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.stripe.com/v1"+path, strings.NewReader(form.Encode()))
+	return s.request(ctx, http.MethodPost, path, key, strings.NewReader(form.Encode()), result)
+}
+
+func (s *Stripe) request(ctx context.Context, method, path, key string, body io.Reader, result any) error {
+	req, err := http.NewRequestWithContext(ctx, method, "https://api.stripe.com/v1"+path, body)
 	if err != nil {
 		return err
 	}
 	req.SetBasicAuth(s.key, "")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Idempotency-Key", key)
+	if key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
 	req.Header.Set("Stripe-Version", "2026-09-30.endive")
 
 	resp, err := s.client.Do(req)

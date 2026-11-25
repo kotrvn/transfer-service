@@ -47,7 +47,11 @@ export async function cancelBooking(bookingId: string, token: string) {
 
 export async function startBookingPayment(bookingId: string, token: string) {
   const { data } = await api.post<{ url: string }>(`/api/bookings/${bookingId}/pay`, undefined, { headers: auth(token) });
-  return data.url;
+  const checkout = new URL(data.url);
+  if (checkout.origin !== "https://checkout.stripe.com" || checkout.username || checkout.password) {
+    throw new Error("Invalid Stripe Checkout URL");
+  }
+  return checkout.href;
 }
 
 export function bookingErrorStatus(error: unknown) {

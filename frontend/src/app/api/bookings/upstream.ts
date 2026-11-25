@@ -1,3 +1,5 @@
+import { BodyTooLarge, readBody } from "../request-body";
+
 const headers = { "Cache-Control": "no-store" };
 
 export function bookingFailure(status: number) {
@@ -12,7 +14,7 @@ export async function forwardBooking(request: Request, path: string) {
     const upstream = await fetch(new URL(path, process.env.API_BASE_URL || "http://localhost:8080"), {
       method: request.method,
       headers: { Authorization: authorization, "Content-Type": "application/json" },
-      body: request.method === "POST" ? await request.text() : undefined,
+      body: request.method === "POST" ? await readBody(request) : undefined,
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(8_000),
@@ -22,7 +24,7 @@ export async function forwardBooking(request: Request, path: string) {
     }
     if (upstream.status === 204) return new Response(null, { status: 204, headers });
     return Response.json(await upstream.json(), { status: upstream.status, headers });
-  } catch {
-    return bookingFailure(502);
+  } catch (error) {
+    return bookingFailure(error instanceof BodyTooLarge ? 413 : 502);
   }
 }

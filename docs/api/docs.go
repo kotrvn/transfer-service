@@ -772,6 +772,12 @@ const docTemplate = `{
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 }
             }
@@ -810,8 +816,20 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "type": "string"
                         }
@@ -821,7 +839,7 @@ const docTemplate = `{
         },
         "/webhooks/stripe": {
             "post": {
-                "description": "Обрабатывает подписанное событие Checkout и подтверждает действующую бронь или запрашивает возврат.",
+                "description": "Обрабатывает подписанное событие Checkout и подтверждает действующую бронь или сохраняет возврат в очереди.",
                 "consumes": [
                     "application/json"
                 ],
@@ -850,12 +868,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "502": {
-                        "description": "Bad Gateway",
                         "schema": {
                             "type": "string"
                         }

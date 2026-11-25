@@ -1,3 +1,5 @@
+import { BodyTooLarge, readBody } from "../../request-body";
+
 const headers = { "Cache-Control": "no-store" };
 
 function failure(status: number) {
@@ -5,7 +7,12 @@ function failure(status: number) {
 }
 
 export async function POST(request: Request) {
-  const body: unknown = await request.json().catch(() => null);
+  let body: unknown;
+  try {
+    body = JSON.parse(await readBody(request));
+  } catch (error) {
+    return failure(error instanceof BodyTooLarge ? 413 : 400);
+  }
   if (
     !body || typeof body !== "object" ||
     !("email" in body) || typeof body.email !== "string" ||
@@ -26,7 +33,7 @@ export async function POST(request: Request) {
     });
 
     if (!upstream.ok) {
-      return failure(upstream.status === 400 || upstream.status === 401 ? upstream.status : 502);
+      return failure([400, 401, 429].includes(upstream.status) ? upstream.status : 502);
     }
 
     const result: unknown = await upstream.json();

@@ -92,12 +92,12 @@ func (h *PaymentHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 // Webhook godoc
 // @Summary Принять событие тестовой оплаты Stripe
-// @Description Обрабатывает подписанное событие Checkout и подтверждает действующую бронь или запрашивает возврат.
+// @Description Обрабатывает подписанное событие Checkout и подтверждает действующую бронь или сохраняет возврат в очереди.
 // @Tags bookings
 // @Accept json
 // @Param Stripe-Signature header string true "Подпись Stripe"
 // @Success 204 "No Content"
-// @Failure 400,500,502,503 {string} string
+// @Failure 400,500,503 {string} string
 // @Router /webhooks/stripe [post]
 func (h *PaymentHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	if h.stripe == nil {
@@ -123,18 +123,11 @@ func (h *PaymentHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Неверный ID брони", http.StatusBadRequest)
 		return
 	}
-	confirmed, err := h.repo.ConfirmPayment(r.Context(), id, checkout.Intent, checkout.Amount)
+	_, err = h.repo.ConfirmPayment(r.Context(), id, checkout.Intent, checkout.Amount)
 	if err != nil {
 		log.Printf("Подтверждение оплаты брони %s: %v", id, err)
 		http.Error(w, "Ошибка подтверждения оплаты", http.StatusInternalServerError)
 		return
-	}
-	if !confirmed {
-		if err := h.stripe.Refund(r.Context(), checkout.Intent); err != nil {
-			log.Printf("Возврат оплаты брони %s: %v", id, err)
-			http.Error(w, "Ошибка возврата оплаты", http.StatusBadGateway)
-			return
-		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

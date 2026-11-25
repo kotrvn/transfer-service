@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"transfer-service/internal/models"
 )
 
 func TestPaidCheckout(t *testing.T) {
@@ -71,7 +73,6 @@ func TestCheckoutAndRefundRequests(t *testing.T) {
 			if req.Header.Get("Idempotency-Key") != "booking-"+id.String() ||
 				req.Header.Get("Stripe-Version") != "2026-09-30.endive" ||
 				req.Form.Get("allowed_payment_method_types[]") != "card" ||
-
 				req.Form.Get("client_reference_id") != id.String() ||
 				req.Form.Get("line_items[0][price_data][unit_amount]") != "2468" ||
 				req.Form.Get("line_items[0][price_data][currency]") != "usd" {
@@ -79,7 +80,13 @@ func TestCheckoutAndRefundRequests(t *testing.T) {
 			}
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"url":"https://checkout.stripe.com/c/pay/cs_test"}`))}, nil
 		case "/v1/refunds":
-			if req.Header.Get("Idempotency-Key") != "late-booking-pi_test" || req.Form.Get("payment_intent") != "pi_test" {
+			if req.Method == http.MethodGet {
+				if req.URL.Query().Get("payment_intent") != "pi_test" || req.Header.Get("Idempotency-Key") != "" {
+					t.Error("unexpected Stripe reconciliation request")
+				}
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"data":[]}`))}, nil
+			}
+			if req.Header.Get("Idempotency-Key") != "late-booking-pi_test-2" || req.Form.Get("payment_intent") != "pi_test" {
 				t.Errorf("unexpected refund request: %v", req.Form)
 			}
 			return &http.Response{StatusCode: 400, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"charge_already_refunded"}}`))}, nil
@@ -91,7 +98,29 @@ func TestCheckoutAndRefundRequests(t *testing.T) {
 	if checkout, err := stripe.Checkout(context.Background(), id, 2468); err != nil || checkout == "" {
 		t.Fatalf("checkout: %q, %v", checkout, err)
 	}
-	if err := stripe.Refund(context.Background(), "pi_test"); err != nil {
+	if status, err := stripe.ReconcileRefund(context.Background(), models.RefundJob{Intent: "pi_test", Amount: 2468, Attempts: 2}); err != nil || status != "succeeded" {
 		t.Fatalf("refund retry: %v", err)
+	}
+}
+
+func TestReconcileExistingRefund(t *testing.T) {
+	for _, status := range []string{"pending", "failed", "succeeded", "requires_action"} {
+		t.Run(status, func(t *testing.T) {
+			stripe, err := NewStripe("sk_test_example", "whsec_example", "http://localhost:3000/bookings/payment-return")
+			if err != nil {
+				t.Fatal(err)
+			}
+			stripe.client.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet {
+					t.Fatal("a known refund must be reconciled without issuing another")
+				}
+				body := fmt.Sprintf(`{"data":[{"status":%q,"amount":500}]}`, status)
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+			})
+			got, err := stripe.ReconcileRefund(context.Background(), models.RefundJob{Intent: "pi_test", Amount: 500, Attempts: 2})
+			if err != nil || got != status {
+				t.Fatalf("refund status %q, error %v", got, err)
+			}
+		})
 	}
 }

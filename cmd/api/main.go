@@ -64,6 +64,7 @@ func main() {
 
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
+	r.Use(middleware.LimitJSONBody)
 
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("http://localhost:8080/swagger/doc.json"), // URL к swagger.json
@@ -76,8 +77,8 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Открытые маршруты
-		r.Post("/users/", userHandler.Register)
-		r.Post("/users/login", userHandler.Login)
+		r.With(middleware.LimitAuth(8, 32, time.Minute)).Post("/users/", userHandler.Register)
+		r.With(middleware.LimitAuth(20, 64, time.Minute)).Post("/users/login", userHandler.Login)
 		r.Post("/webhooks/stripe", paymentHandler.Webhook)
 
 		// Публичный список поездок (пассажиры тоже должны их видеть)
@@ -107,14 +108,18 @@ func main() {
 
 	// Запускаем воркер в отдельной горутине (он не блокирует сервер)
 	go worker.StartBookingCleanupWorker(ctx, bookingRepo, 1*time.Minute, models.BookingHold)
+	if stripe != nil {
+		go worker.RunRefundWorker(ctx, bookingRepo, stripe)
+	}
 
 	// --- ЗАПУСК СЕРВЕРА ---
 	addr := fmt.Sprintf(":%s", cfg.Port)
+	server := &http.Server{Addr: addr, Handler: r, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	log.Printf("🌍 Сервер запущен на http://localhost%s\n", addr)
 
 	// Запускаем сервер в горутине, чтобы он не блокировал ожидание Ctrl+C
 	go func() {
-		if err := http.ListenAndServe(addr, r); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Ошибка запуска сервера: %v\n", err)
 		}
 	}()

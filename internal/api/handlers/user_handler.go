@@ -32,7 +32,7 @@ func NewUserHandler(repo UserRepo, secret string) *UserHandler {
 // @Produce json
 // @Param request body models.UserCreateRequest true "Данные пользователя"
 // @Success 201 {object} models.User
-// @Failure 400,409 {string} string
+// @Failure 400,409,429 {string} string
 // @Router /users/ [post]
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req models.UserCreateRequest
@@ -75,7 +75,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param request body models.UserLoginRequest true "Email и пароль"
 // @Success 200 {object} map[string]string "Пример: {"token": "eyJ..."}"
-// @Failure 401 {string} string
+// @Failure 400,401,429 {string} string
 // @Router /users/login [post]
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req models.UserLoginRequest

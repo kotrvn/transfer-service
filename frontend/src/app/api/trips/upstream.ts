@@ -1,3 +1,5 @@
+import { BodyTooLarge, readBody } from "../request-body";
+
 const headers = { "Cache-Control": "no-store" };
 
 export function tripFailure(status: number) {
@@ -23,7 +25,7 @@ export async function forwardTrip(method: "GET" | "POST", request: Request, path
       headers: requiresAuth
         ? { Authorization: authorization ?? "", "Content-Type": "application/json" }
         : undefined,
-      body: method === "POST" ? await request.text() : undefined,
+      body: method === "POST" ? await readBody(request) : undefined,
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(8_000),
@@ -34,7 +36,7 @@ export async function forwardTrip(method: "GET" | "POST", request: Request, path
     }
     if (upstream.status === 204) return new Response(null, { status: 204, headers });
     return Response.json(await upstream.json(), { status: upstream.status, headers });
-  } catch {
-    return tripFailure(502);
+  } catch (error) {
+    return tripFailure(error instanceof BodyTooLarge ? 413 : 502);
   }
 }

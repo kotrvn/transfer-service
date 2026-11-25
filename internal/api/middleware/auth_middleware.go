@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // Создаем свой тип для ключа контекста, чтобы избежать конфликтов
@@ -37,7 +38,7 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 			// 2. Парсим и проверяем токен
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 				return []byte(secret), nil
-			})
+			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 
 			if err != nil || !token.Valid {
 				http.Error(w, "Недействительный токен", http.StatusUnauthorized)
@@ -53,6 +54,12 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 
 			userID, _ := claims["sub"].(string)
 			userRole, _ := claims["role"].(string)
+
+			id, err := uuid.Parse(userID)
+			if err != nil || id == uuid.Nil || (userRole != "driver" && userRole != "passenger") {
+				http.Error(w, "Недействительный токен", http.StatusUnauthorized)
+				return
+			}
 
 			// 4. Кладем данные в контекст запроса
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)

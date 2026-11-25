@@ -17,7 +17,7 @@ HTTP API на Go для поиска поездок и бронирования 
 
 ## Локальный запуск API
 
-Выполните `docker compose up --build`. Compose запускает PostgreSQL, применяет миграции и поднимает API. После запуска выполните `make smoke` для проверки публичных маршрутов. Swagger UI доступен по адресу `http://localhost:8080/swagger/index.html`.
+Сгенерируйте секрет командой `openssl rand -hex 32` и запишите его в локальный `.env` как `JWT_SECRET`. Выполните `docker compose up --build`. Compose запускает PostgreSQL, применяет миграции и поднимает API. После запуска выполните `make smoke` для проверки публичных маршрутов. Swagger UI доступен по адресу `http://localhost:8080/swagger/index.html`.
 
 ## Локальный запуск фронтенда
 

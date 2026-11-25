@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -98,8 +100,22 @@ func TestBookingPaymentPostgres(t *testing.T) {
 	if _, err := repo.CheckoutAmount(ctx, id, driver); err != ErrBookingNotFound {
 		t.Fatalf("checkout with another user: %v", err)
 	}
-	confirm(id, "pi_paid", 2467, false)
-	confirm(id, "pi_paid", 2468, true)
+	confirm(id, "pi_wrong_amount", 2467, false)
+	payments := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			confirmed, err := repo.ConfirmPayment(ctx, id, "pi_paid", 2468)
+			if err == nil && !confirmed {
+				err = fmt.Errorf("repeated payment did not confirm")
+			}
+			payments <- err
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		if err := <-payments; err != nil {
+			t.Fatal(err)
+		}
+	}
 	confirm(id, "pi_paid", 2468, true)
 	confirm(id, "pi_duplicate", 2468, false)
 	if err := repo.Cancel(ctx, id, passenger); err == nil {
@@ -112,6 +128,19 @@ func TestBookingPaymentPostgres(t *testing.T) {
 		t.Fatalf("expired checkout: %v", err)
 	}
 	confirm(expired, "pi_late", 2468, false)
+	confirm(expired, "pi_late", 2468, false)
+	confirm(id, "pi_wrong_amount", 2468, false)
+	var refundCount int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM stripe_refunds WHERE payment_intent = 'pi_late'").Scan(&refundCount); err != nil || refundCount != 1 {
+		t.Fatalf("duplicate late payment queued %d refunds: %v", refundCount, err)
+	}
+	job, err := repo.ClaimRefund(ctx)
+	if err != nil || job == nil {
+		t.Fatalf("claim refund: %+v, %v", job, err)
+	}
+	if err := repo.UpdateRefund(ctx, *job, "succeeded", "", time.Minute); err != nil {
+		t.Fatal(err)
+	}
 	if count, err := repo.CleanupExpired(ctx, models.BookingHold); err != nil || count != 1 {
 		t.Fatalf("cleanup: %d, %v", count, err)
 	}

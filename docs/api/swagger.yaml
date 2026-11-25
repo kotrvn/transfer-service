@@ -687,6 +687,10 @@ paths:
           description: Conflict
           schema:
             type: string
+        "429":
+          description: Too Many Requests
+          schema:
+            type: string
       summary: Регистрация нового пользователя
       tags:
       - users
@@ -711,8 +715,16 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
         "401":
           description: Unauthorized
+          schema:
+            type: string
+        "429":
+          description: Too Many Requests
           schema:
             type: string
       summary: Вход в систему
@@ -723,7 +735,7 @@ paths:
       consumes:
       - application/json
       description: Обрабатывает подписанное событие Checkout и подтверждает действующую
-        бронь или запрашивает возврат.
+        бронь или сохраняет возврат в очереди.
       parameters:
       - description: Подпись Stripe
         in: header
@@ -739,10 +751,6 @@ paths:
             type: string
         "500":
           description: Internal Server Error
-          schema:
-            type: string
-        "502":
-          description: Bad Gateway
           schema:
             type: string
         "503":
