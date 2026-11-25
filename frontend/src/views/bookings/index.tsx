@@ -4,9 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
-import { bookingErrorStatus, bookingsKey, bookingStatusLabel, cancelBooking, listBookings, startBookingPayment } from "../../entities/booking";
+import { bookingErrorStatus, bookingsKey, bookingStatusLabel, cancelBooking, confirmArrival, listBookings, startBookingPayment } from "../../entities/booking";
 import { useSession } from "../../entities/session";
 import { listTrips, tripDateFormat, tripSearchKey } from "../../entities/trip";
+import { RateBooking } from "../../features/rate-booking";
 import styles from "./bookings.module.scss";
 
 const checkoutPrice = new Intl.NumberFormat("ru-RU", {
@@ -22,11 +23,9 @@ function PassengerBookings({ token, userId }: { token: string; userId: string })
     queryKey: bookingsKey(userId),
     queryFn: ({ signal }) => listBookings(token, signal),
     retry: 1,
-        refetchInterval: (query) => {
-      const bookings = query.state.data;
-      if (bookings?.some((booking) => booking.status === "pending")) return 5_000;
-      return bookings?.some((booking) => booking.status === "confirmed") ? 30_000 : false;
-    },
+    refetchInterval: (query) => query.state.data?.some(
+      (booking) => ["requested", "pending", "confirmed"].includes(booking.status),
+    ) ? 5_000 : false,
     meta: { private: true },
   });
   const trips = useQuery({
@@ -61,6 +60,10 @@ function PassengerBookings({ token, userId }: { token: string; userId: string })
       }
     },
   });
+  const arrival = useMutation({
+    mutationFn: (id: string) => confirmArrival(id, token),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: bookingsKey(userId) }),
+  });
 
   async function openCheckout(id: string) {
     const tab = window.open("about:blank", "_blank");
@@ -91,18 +94,30 @@ function PassengerBookings({ token, userId }: { token: string; userId: string })
             <ul className={styles.list}>
               {bookings.data.map((booking) => {
                 const trip = tripsById.get(booking.trip_id);
-                const active = booking.status === "pending";
+                const active = booking.status === "pending" || booking.status === "requested";
                 return (
                   <li key={booking.id} className={styles.booking}>
                     <div>
                       <h2>{trip ? `${trip.from_city} → ${trip.to_city}` : "Поездка"}</h2>
                       {trip && <time dateTime={trip.departure_at}>{tripDateFormat.format(new Date(trip.departure_at))}</time>}
                       <p>Мест: {booking.seats} · {bookingStatusLabel(booking.status)}{booking.paid && " · Тестовая оплата принята"}</p>
+                      {booking.arrived_at && booking.status === "confirmed" && <p>Прибытие подтверждено</p>}
                       {(booking.payment_available || booking.paid) && trip && (
                         <p>{checkoutPrice.format(trip.price_per_seat * booking.seats)}</p>
                       )}
                     </div>
                     <div className={styles.actions}>
+                      {booking.status === "completed" && (
+                        <RateBooking id={booking.id} token={token} rating={booking.driver_rating} review={booking.driver_review} subject="водителя"
+                          onRated={() => queryClient.invalidateQueries({ queryKey: ["bookings"] })} />
+                      )}
+                      {booking.arrival_available && (
+                        <button className={styles.pay} type="button" disabled={arrival.isPending}
+                          onClick={() => arrival.mutate(booking.id)}>Я на месте</button>
+                      )}
+                      {arrival.isError && arrival.variables === booking.id && (
+                        <p className={styles.error} role="alert">Не удалось подтвердить прибытие. Попробуйте ещё раз.</p>
+                      )}
                       {booking.payment_available && confirming !== booking.id && (
                         payment.isSuccess && payment.variables === booking.id ? (
                           <>

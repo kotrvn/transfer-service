@@ -5,9 +5,10 @@ import { isAxiosError } from "axios";
 import { useEffect, useState } from "react";
 
 import { useSession } from "../../entities/session";
-import { completeTrip, driverTripsKey, listDriverTrips, tripDateFormat, tripPriceFormat } from "../../entities/trip";
+import { completeTrip, driverBalanceKey, driverTripsKey, getDriverBalance, listDriverTrips, tripDateFormat, tripPriceFormat } from "../../entities/trip";
 import { CreateTripDialog } from "../../features/create-trip";
 import styles from "./dashboard.module.scss";
+import { DriverBookings } from "./driver-bookings";
 import { PassengerDashboard } from "./passenger";
 
 function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
@@ -21,6 +22,12 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
     retry: 1,
     meta: { private: true },
   });
+  const balance = useQuery({
+    queryKey: driverBalanceKey(driverId),
+    queryFn: ({ signal }) => getDriverBalance(token, signal),
+    refetchInterval: 5_000,
+    meta: { private: true },
+  });
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => window.clearInterval(timer);
@@ -31,13 +38,15 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["trips"] }),
         queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+        queryClient.invalidateQueries({ queryKey: driverBalanceKey(driverId) }),
       ]);
       setConfirming(undefined);
     },
   });
   const completeError = isAxiosError(completion.error) && completion.error.response?.status === 409
-    ? "Поездку можно завершить после времени отправления."
+    ? "Поездку можно завершить после подтверждения прибытия всеми пассажирами."
     : "Не удалось завершить поездку. Попробуйте ещё раз.";
+  const money = new Intl.NumberFormat("ru-RU", { style: "currency", currency: balance.data?.currency ?? "USD" });
 
   return (
     <>
@@ -45,6 +54,12 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
         <h1>Мои поездки</h1>
         <button type="button" onClick={() => setCreating(true)}>Создать поездку</button>
       </div>
+      <section className={styles.notice} aria-label="Тестовый баланс">
+        {balance.data ? (
+          <>Тестовый баланс · Доступно {money.format(balance.data.available_cents / 100)} · Заблокировано {money.format(balance.data.locked_cents / 100)}</>
+        ) : balance.isError ? <p role="alert">Не удалось загрузить баланс.</p> : <p role="status">Загружаем баланс…</p>}
+      </section>
+      <DriverBookings driverId={driverId} token={token} trips={trips.data ?? []} />
       <section className={styles.panel} aria-label="Список поездок">
         {trips.isPending ? <p role="status">Загружаем поездки…</p>
           : trips.isError && !trips.data ? (
@@ -81,10 +96,10 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
                               onClick={() => { setConfirming(undefined); completion.reset(); }}>Назад</button>
                             {completion.isError && <span role="alert">{completeError}</span>}
                           </div>
-                        ) : Date.parse(trip.departure_at) <= now ? (
+                        ) : balance.data?.ready_trip_ids.includes(trip.id) ? (
                           <button className={styles.action} type="button" disabled={completion.isPending}
                             onClick={() => { completion.reset(); setConfirming(trip.id); }}>Завершить поездку</button>
-                        ) : "Запланирована"}
+                        ) : Date.parse(trip.departure_at) > now ? "Запланирована" : "Ожидает подтверждения пассажиров"}
                     </td>
                   </tr>
                 ))}

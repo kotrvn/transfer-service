@@ -122,3 +122,8 @@
 @media (max-width: 38rem) {
   .filters { grid-template-columns: minmax(0, 1fr); }
 }
+
+.sectionTitle {
+  margin: var(--space-4);
+  font-size: var(--font-size-body);
+}

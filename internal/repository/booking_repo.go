@@ -76,10 +76,9 @@ func (r *BookingRepository) Create(ctx context.Context, booking *models.Booking)
 func (r *BookingRepository) GetByPassengerID(ctx context.Context, passengerID uuid.UUID) ([]*models.Booking, error) {
 	query := `
 		SELECT b.id, b.trip_id, b.passenger_id, b.seats,
-			CASE WHEN b.status = 'confirmed' AND t.completed_at IS NOT NULL THEN 'completed'
-			     WHEN b.status = 'pending' AND t.completed_at IS NOT NULL THEN 'expired'
-			     ELSE b.status END,
-			b.created_at, b.stripe_payment_intent IS NOT NULL,
+			` + visibleBookingStatus + `, b.driver_rating, b.driver_review,
+			b.created_at, b.stripe_payment_intent IS NOT NULL, b.arrived_at,
+			b.status = 'confirmed' AND b.arrived_at IS NULL AND t.completed_at IS NULL AND t.departure_at <= clock_timestamp(),
 			b.status = 'pending' AND t.completed_at IS NULL AND ` + bookingUnexpired + `
 			AND ` + bookingAmount + ` BETWEEN $3 AND $4
 		FROM bookings b JOIN trips t ON t.id = b.trip_id WHERE b.passenger_id = $1`
@@ -93,7 +92,7 @@ func (r *BookingRepository) GetByPassengerID(ctx context.Context, passengerID uu
 	var bookings []*models.Booking
 	for rows.Next() {
 		var b models.Booking
-		err := rows.Scan(&b.ID, &b.TripID, &b.PassengerID, &b.Seats, &b.Status, &b.CreatedAt, &b.Paid, &b.PaymentAvailable)
+		err := rows.Scan(&b.ID, &b.TripID, &b.PassengerID, &b.Seats, &b.Status, &b.DriverRating, &b.DriverReview, &b.CreatedAt, &b.Paid, &b.ArrivedAt, &b.ArrivalAvailable, &b.PaymentAvailable)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +122,7 @@ func (r *BookingRepository) Cancel(ctx context.Context, bookingID uuid.UUID, pas
 	var seats int
 	var cancellable bool
 	queryBooking := `
-		SELECT b.seats, b.status = 'pending' AND t.completed_at IS NULL AND ` + bookingUnexpired + `
+		SELECT b.seats, b.status IN ('requested', 'pending') AND t.completed_at IS NULL AND ` + bookingUnexpired + `
 		FROM bookings b JOIN trips t ON t.id = b.trip_id
 		WHERE b.id = $1 FOR UPDATE OF b`
 	err = tx.QueryRow(ctx, queryBooking, bookingID, int64(models.BookingHold.Seconds())).Scan(&seats, &cancellable)
@@ -131,7 +130,7 @@ func (r *BookingRepository) Cancel(ctx context.Context, bookingID uuid.UUID, pas
 		return errors.New("бронь не найдена или не принадлежит вам")
 	}
 	if !cancellable {
-		return errors.New("отменить можно только действующую бронь, ожидающую оплаты")
+		return errors.New("отменить можно только действующую заявку или неоплаченную бронь")
 	}
 
 	// 3. Меняем статус брони
@@ -163,8 +162,8 @@ func (r *BookingRepository) CleanupExpired(ctx context.Context, expireAfter time
 	intervalStr := fmt.Sprintf("%d seconds", int(expireAfter.Seconds()))
 	query := `
 		UPDATE bookings b SET status = 'expired'
-		FROM trips t WHERE t.id = b.trip_id AND b.status = 'pending'
-		AND (b.created_at <= NOW() - $1::interval OR t.completed_at IS NOT NULL)
+		FROM trips t WHERE t.id = b.trip_id AND b.status IN ('requested', 'pending')
+		AND (COALESCE(b.payment_opened_at, b.created_at) <= NOW() - $1::interval OR t.completed_at IS NOT NULL)
 		RETURNING b.trip_id, b.seats
 	`
 	rows, err := tx.Query(ctx, query, intervalStr)

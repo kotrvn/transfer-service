@@ -11,6 +11,9 @@ export type TripDraft = {
 export type Trip = TripDraft & {
   id: string;
   driver_id: string;
+  driver_name: string;
+  driver_rating: number | null;
+  driver_rating_count: number;
   seats_available: number;
   completed_at: string | null;
 };
@@ -41,4 +44,16 @@ export async function completeTrip(tripId: string, token: string) {
   await api.post(`/api/trips/${tripId}/complete`, undefined, {
     headers: { Authorization: `Bearer ${token}` },
   });
+}
+
+export const driverBalanceKey = (driverId: string) => ["driver-balance", driverId] as const;
+
+export async function getDriverBalance(token: string, signal: AbortSignal) {
+  const { data } = await api.get<{
+    currency: string;
+    locked_cents: number;
+    available_cents: number;
+    ready_trip_ids: string[];
+  }>("/api/trips/balance", { headers: { Authorization: `Bearer ${token}` }, signal });
+  return data;
 }

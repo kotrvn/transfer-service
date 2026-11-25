@@ -6,7 +6,8 @@ export function tripFailure(status: number) {
 
 export async function forwardTrip(method: "GET" | "POST", request: Request, path = "/api/v1/trips") {
   const authorization = request.headers.get("authorization");
-  if (method === "POST" && !authorization?.startsWith("Bearer ")) return tripFailure(401);
+  const requiresAuth = method === "POST" || path === "/api/v1/trips/balance";
+  if (requiresAuth && !authorization?.startsWith("Bearer ")) return tripFailure(401);
 
   try {
     const url = new URL(path, process.env.API_BASE_URL || "http://localhost:8080");
@@ -19,7 +20,7 @@ export async function forwardTrip(method: "GET" | "POST", request: Request, path
     }
     const upstream = await fetch(url, {
       method,
-      headers: method === "POST"
+      headers: requiresAuth
         ? { Authorization: authorization ?? "", "Content-Type": "application/json" }
         : undefined,
       body: method === "POST" ? await request.text() : undefined,

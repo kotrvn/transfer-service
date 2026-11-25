@@ -90,6 +90,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/bookings/driver": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bookings"
+                ],
+                "summary": "Заявки и оценки пассажиров для собственных поездок",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.DriverBooking"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/bookings/my": {
             "get": {
                 "security": [
@@ -137,7 +182,7 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "Отменяет действующую бронь владельца в статусе pending и возвращает места.",
+                "description": "Отменяет действующую бронь владельца в статусе requested или pending и возвращает места.",
                 "produces": [
                     "application/json"
                 ],
@@ -178,6 +223,145 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/bookings/{id}/arrive": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Владелец подтверждённой брони может отметить прибытие после отправления поездки.",
+                "tags": [
+                    "bookings"
+                ],
+                "summary": "Подтвердить прибытие пассажира",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID брони (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/bookings/{id}/decision": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bookings"
+                ],
+                "summary": "Принять или отклонить заявку на свою поездку",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID брони",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "approve или reject",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.bookingDecision"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "string"
                         }
@@ -260,6 +444,75 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/bookings/{id}/rating": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bookings"
+                ],
+                "summary": "Оценить другую сторону завершённой брони",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID брони",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Оценка от 1 до 5 и необязательный отзыв до 1000 символов",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.BookingRatingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "string"
                         }
@@ -371,6 +624,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/trips/balance": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Получить внутренний тестовый баланс водителя",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DriverBalance"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/trips/{id}/complete": {
             "post": {
                 "security": [
@@ -378,7 +673,7 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "Водитель-владелец отмечает поездку завершённой после времени отправления. Повторный запрос сохраняет результат.",
+                "description": "Водитель-владелец отмечает поездку завершённой после времени отправления и подтверждения прибытия всеми пассажирами с подтверждённой бронью. Повторный запрос сохраняет результат.",
                 "tags": [
                     "trips"
                 ],
@@ -576,6 +871,21 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "handlers.bookingDecision": {
+            "type": "object",
+            "required": [
+                "decision"
+            ],
+            "properties": {
+                "decision": {
+                    "type": "string",
+                    "enum": [
+                        "approve",
+                        "reject"
+                    ]
+                }
+            }
+        },
         "handlers.checkoutResponse": {
             "type": "object",
             "properties": {
@@ -587,7 +897,19 @@ const docTemplate = `{
         "models.Booking": {
             "type": "object",
             "properties": {
+                "arrival_available": {
+                    "type": "boolean"
+                },
+                "arrived_at": {
+                    "type": "string"
+                },
                 "created_at": {
+                    "type": "string"
+                },
+                "driver_rating": {
+                    "type": "integer"
+                },
+                "driver_review": {
                     "type": "string"
                 },
                 "id": {
@@ -628,6 +950,78 @@ const docTemplate = `{
                 }
             }
         },
+        "models.BookingRatingRequest": {
+            "type": "object",
+            "required": [
+                "score"
+            ],
+            "properties": {
+                "review": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "score": {
+                    "type": "integer",
+                    "maximum": 5,
+                    "minimum": 1
+                }
+            }
+        },
+        "models.DriverBalance": {
+            "type": "object",
+            "properties": {
+                "available_cents": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "locked_cents": {
+                    "type": "integer"
+                },
+                "ready_trip_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.DriverBooking": {
+            "type": "object",
+            "properties": {
+                "decision_available": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "passenger_name": {
+                    "type": "string"
+                },
+                "passenger_rating": {
+                    "type": "number"
+                },
+                "passenger_rating_count": {
+                    "type": "integer"
+                },
+                "rating_given": {
+                    "type": "integer"
+                },
+                "review_given": {
+                    "type": "string"
+                },
+                "seats": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "trip_id": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Trip": {
             "type": "object",
             "properties": {
@@ -639,6 +1033,15 @@ const docTemplate = `{
                 },
                 "driver_id": {
                     "type": "string"
+                },
+                "driver_name": {
+                    "type": "string"
+                },
+                "driver_rating": {
+                    "type": "number"
+                },
+                "driver_rating_count": {
+                    "type": "integer"
                 },
                 "from_city": {
                     "type": "string"

@@ -167,10 +167,46 @@ func TestBookingPaymentPostgres(t *testing.T) {
 		t.Fatalf("complete before departure: %v", err)
 	}
 	exec(pool, "UPDATE trips SET departure_at = NOW() - interval '1 hour' WHERE id = $1", trip)
+	if err := tripRepo.Complete(ctx, trip, driver); err != ErrPassengerArrivalRequired {
+		t.Fatalf("complete before arrivals: %v", err)
+	}
+	locked := int64(2468)
+	if paid.confirmed {
+		locked += 2468
+	}
+	assertBalance := func(locked, available int64, ready bool) {
+		t.Helper()
+		balance, err := tripRepo.DriverBalance(ctx, driver)
+		if err != nil || balance.LockedCents != locked || balance.AvailableCents != available ||
+			(len(balance.ReadyTripIDs) == 1 && balance.ReadyTripIDs[0] == trip) != ready {
+			t.Fatalf("unexpected balance: %+v, %v", balance, err)
+		}
+	}
+	assertBalance(locked, 0, false)
+	if err := repo.ConfirmArrival(ctx, id, driver); err != ErrBookingNotFound {
+		t.Fatalf("confirm another passenger's arrival: %v", err)
+	}
+	if err := repo.ConfirmArrival(ctx, pending, passenger); err != ErrArrivalUnavailable {
+		t.Fatalf("confirm pending booking arrival: %v", err)
+	}
+	if err := repo.ConfirmArrival(ctx, id, passenger); err != nil {
+		t.Fatal(err)
+	}
+	if paid.confirmed {
+		assertBalance(locked, 0, false)
+		if err := repo.ConfirmArrival(ctx, racing, passenger); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertBalance(locked, 0, true)
 	for i := 0; i < 2; i++ {
 		if err := tripRepo.Complete(ctx, trip, driver); err != nil {
 			t.Fatalf("complete trip: %v", err)
 		}
+	}
+	assertBalance(0, locked, false)
+	if err := repo.ConfirmArrival(ctx, id, passenger); err != nil {
+		t.Fatalf("repeat arrival after completion: %v", err)
 	}
 	if err := repo.Create(ctx, &models.Booking{ID: uuid.New(), TripID: trip, PassengerID: passenger, Seats: 1, Status: "pending"}); err != ErrTripCompleted {
 		t.Fatalf("book completed trip: %v", err)
@@ -203,5 +239,72 @@ func TestBookingPaymentPostgres(t *testing.T) {
 	trips, err := tripRepo.List(ctx, "", "")
 	if err != nil || len(trips) != 1 || trips[0].CompletedAt == nil || trips[0].SeatsAvailable != wantSeats {
 		t.Fatalf("completed trip result: %+v, %v", trips, err)
+	}
+	if err := repo.Rate(ctx, id, driver, false, 5, ""); err != ErrBookingActionUnavailable {
+		t.Fatalf("rate another passenger's booking: %v", err)
+	}
+	if err := repo.Rate(ctx, pending, driver, true, 1, ""); err != ErrBookingActionUnavailable {
+		t.Fatalf("rate an expired booking: %v", err)
+	}
+	if err := repo.Rate(ctx, id, passenger, false, 5, "Отличная поездка"); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Rate(ctx, id, driver, true, 2, "Опоздание"); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Rate(ctx, id, passenger, false, 1, ""); err != ErrBookingActionUnavailable {
+		t.Fatalf("replace existing rating: %v", err)
+	}
+
+	var driverReview, passengerReview string
+	if err := pool.QueryRow(ctx, "SELECT driver_review, passenger_review FROM bookings WHERE id = $1", id).
+		Scan(&driverReview, &passengerReview); err != nil || driverReview != "Отличная поездка" || passengerReview != "Опоздание" {
+		t.Fatalf("saved reviews: %q, %q, %v", driverReview, passengerReview, err)
+	}
+
+	newTrip := uuid.New()
+	exec(pool, `INSERT INTO trips (id, driver_id, from_city, to_city, departure_at, seats_total, seats_available, price_per_seat)
+		VALUES ($1, $2, 'C', 'D', NOW(), 3, 3, 12.34)`, newTrip, driver)
+	request := func() uuid.UUID {
+		t.Helper()
+		booking := models.Booking{ID: uuid.New(), TripID: newTrip, PassengerID: passenger, Seats: 1, Status: "requested"}
+		if err := repo.Create(ctx, &booking); err != nil {
+			t.Fatal(err)
+		}
+		return booking.ID
+	}
+	rejected := request()
+	if _, err := repo.CheckoutAmount(ctx, rejected, passenger); err != ErrBookingNotPayable {
+		t.Fatalf("pay before driver decision: %v", err)
+	}
+	if err := repo.DecideRequest(ctx, rejected, passenger, false); err != ErrBookingNotFound {
+		t.Fatalf("reject another driver's request: %v", err)
+	}
+	if err := repo.DecideRequest(ctx, rejected, driver, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.DecideRequest(ctx, rejected, driver, false); err != ErrBookingActionUnavailable {
+		t.Fatalf("repeated rejection: %v", err)
+	}
+	trips, err = tripRepo.List(ctx, "C", "D")
+	if err != nil || len(trips) != 1 || trips[0].SeatsAvailable != 3 || trips[0].DriverRating == nil ||
+		*trips[0].DriverRating != 5 || trips[0].DriverRatingCount != 1 {
+		t.Fatalf("public rating and restored seat: %+v, %v", trips, err)
+	}
+	approved := request()
+	driverBookings, err := repo.DriverBookings(ctx, driver)
+	if err != nil || len(driverBookings) == 0 || driverBookings[0].ID != approved ||
+		driverBookings[0].PassengerRating == nil || *driverBookings[0].PassengerRating != 2 || !driverBookings[0].DecisionAvailable {
+		t.Fatalf("driver bookings: %+v, %v", driverBookings, err)
+	}
+	private, err := repo.DriverBookings(ctx, passenger)
+	if err != nil || len(private) != 0 {
+		t.Fatalf("leaked private rating: %+v, %v", private, err)
+	}
+	if err := repo.DecideRequest(ctx, approved, driver, true); err != nil {
+		t.Fatal(err)
+	}
+	if amount, err := repo.CheckoutAmount(ctx, approved, passenger); err != nil || amount != 1234 {
+		t.Fatalf("payment after approval: %d, %v", amount, err)
 	}
 }

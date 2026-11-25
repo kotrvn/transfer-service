@@ -15,6 +15,10 @@ import (
 )
 
 type BookingRepo interface {
+	DriverBookings(context.Context, uuid.UUID) ([]models.DriverBooking, error)
+	DecideRequest(context.Context, uuid.UUID, uuid.UUID, bool) error
+	Rate(context.Context, uuid.UUID, uuid.UUID, bool, int, string) error
+	ConfirmArrival(context.Context, uuid.UUID, uuid.UUID) error
 	Create(ctx context.Context, booking *models.Booking) error
 	GetByPassengerID(ctx context.Context, passengerID uuid.UUID) ([]*models.Booking, error)
 	Cancel(ctx context.Context, bookingID uuid.UUID, passengerID uuid.UUID) error
@@ -65,7 +69,7 @@ func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		TripID:      req.TripID,
 		PassengerID: passengerID,
 		Seats:       req.Seats,
-		Status:      "pending",
+		Status:      "requested",
 	}
 
 	// 5. Сохраняем (с обработкой кастомных ошибок)
@@ -127,7 +131,7 @@ func (h *BookingHandler) ListMy(w http.ResponseWriter, r *http.Request) {
 
 // Cancel godoc
 // @Summary Отменить бронь
-// @Description Отменяет действующую бронь владельца в статусе pending и возвращает места.
+// @Description Отменяет действующую бронь владельца в статусе requested или pending и возвращает места.
 // @Tags bookings
 // @Produce json
 // @Security Bearer
@@ -154,4 +158,42 @@ func (h *BookingHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent) // 204 No Content — успешно удалено
+}
+
+// Arrive godoc
+// @Summary Подтвердить прибытие пассажира
+// @Description Владелец подтверждённой брони может отметить прибытие после отправления поездки.
+// @Tags bookings
+// @Security Bearer
+// @Param id path string true "ID брони (UUID)"
+// @Success 204 "No Content"
+// @Failure 400,401,403,404,409,500 {string} string
+// @Router /bookings/{id}/arrive [post]
+func (h *BookingHandler) Arrive(w http.ResponseWriter, r *http.Request) {
+	role, _ := r.Context().Value(middleware.UserRoleKey).(string)
+	if role != "passenger" {
+		http.Error(w, "Подтверждение доступно пассажирам", http.StatusForbidden)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Неверный ID брони", http.StatusBadRequest)
+		return
+	}
+	userID, _ := r.Context().Value(middleware.UserIDKey).(string)
+	passengerID, err := uuid.Parse(userID)
+	if err != nil {
+		http.Error(w, "Неверный ID пассажира", http.StatusUnauthorized)
+		return
+	}
+	switch err := h.repo.ConfirmArrival(r.Context(), id, passengerID); {
+	case errors.Is(err, repository.ErrBookingNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, repository.ErrArrivalUnavailable):
+		http.Error(w, err.Error(), http.StatusConflict)
+	case err != nil:
+		http.Error(w, "Не удалось подтвердить прибытие", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
 }

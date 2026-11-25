@@ -85,3 +85,7 @@ func TestListTrips_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "Paris")
 }
+
+func (m *mockTripRepo) DriverBalance(context.Context, uuid.UUID) (models.DriverBalance, error) {
+	return models.DriverBalance{}, nil
+}

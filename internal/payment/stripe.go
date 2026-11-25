@@ -46,7 +46,7 @@ func (s *Stripe) Checkout(ctx context.Context, id uuid.UUID, amount int64) (stri
 	}
 	err := s.post(ctx, "/checkout/sessions", "booking-"+id.String(), url.Values{
 		"mode":                                          {"payment"},
-		"payment_method_types[]":                        {"card"},
+		"allowed_payment_method_types[]":                {"card"},
 		"line_items[0][quantity]":                       {"1"},
 		"line_items[0][price_data][currency]":           {Currency},
 		"line_items[0][price_data][unit_amount]":        {strconv.FormatInt(amount, 10)},
@@ -94,6 +94,8 @@ func (s *Stripe) post(ctx context.Context, path, key string, form url.Values, re
 	req.SetBasicAuth(s.key, "")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Idempotency-Key", key)
+	req.Header.Set("Stripe-Version", "2026-09-30.endive")
+
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return err

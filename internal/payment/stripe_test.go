@@ -69,6 +69,9 @@ func TestCheckoutAndRefundRequests(t *testing.T) {
 		switch req.URL.Path {
 		case "/v1/checkout/sessions":
 			if req.Header.Get("Idempotency-Key") != "booking-"+id.String() ||
+				req.Header.Get("Stripe-Version") != "2026-09-30.endive" ||
+				req.Form.Get("allowed_payment_method_types[]") != "card" ||
+
 				req.Form.Get("client_reference_id") != id.String() ||
 				req.Form.Get("line_items[0][price_data][unit_amount]") != "2468" ||
 				req.Form.Get("line_items[0][price_data][currency]") != "usd" {

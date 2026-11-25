@@ -15,6 +15,7 @@ import (
 )
 
 type TripRepo interface {
+	DriverBalance(context.Context, uuid.UUID) (models.DriverBalance, error)
 	Complete(ctx context.Context, tripID, driverID uuid.UUID) error
 	Create(ctx context.Context, trip *models.Trip) error
 	List(ctx context.Context, fromCity, toCity string) ([]*models.Trip, error)
@@ -111,7 +112,7 @@ func (h *TripHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Complete godoc
 // @Summary Завершить поездку
-// @Description Водитель-владелец отмечает поездку завершённой после времени отправления. Повторный запрос сохраняет результат.
+// @Description Водитель-владелец отмечает поездку завершённой после времени отправления и подтверждения прибытия всеми пассажирами с подтверждённой бронью. Повторный запрос сохраняет результат.
 // @Tags trips
 // @Security Bearer
 // @Param id path string true "ID поездки (UUID)"
@@ -139,11 +140,41 @@ func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, repository.ErrTripNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)
-	case errors.Is(err, repository.ErrTripNotDeparted):
+	case errors.Is(err, repository.ErrTripNotDeparted), errors.Is(err, repository.ErrPassengerArrivalRequired):
 		http.Error(w, err.Error(), http.StatusConflict)
 	case err != nil:
 		http.Error(w, "Не удалось завершить поездку", http.StatusInternalServerError)
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// Balance godoc
+// @Summary Получить внутренний тестовый баланс водителя
+// @Tags trips
+// @Produce json
+// @Security Bearer
+// @Success 200 {object} models.DriverBalance
+// @Failure 401,403,500 {string} string
+// @Router /trips/balance [get]
+func (h *TripHandler) Balance(w http.ResponseWriter, r *http.Request) {
+	role, _ := r.Context().Value(middleware.UserRoleKey).(string)
+	if role != "driver" {
+		http.Error(w, "Баланс доступен водителям", http.StatusForbidden)
+		return
+	}
+	userID, _ := r.Context().Value(middleware.UserIDKey).(string)
+	driverID, err := uuid.Parse(userID)
+	if err != nil {
+		http.Error(w, "Неверный ID водителя", http.StatusUnauthorized)
+		return
+	}
+	balance, err := h.repo.DriverBalance(r.Context(), driverID)
+	if err != nil {
+		http.Error(w, "Не удалось получить баланс", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	json.NewEncoder(w).Encode(balance)
 }

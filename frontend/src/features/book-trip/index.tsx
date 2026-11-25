@@ -90,7 +90,7 @@ export function BookTripDialog({ trip, token, userId, onClose, onBooked }: {
         <div className={styles.actions}>
           <button type="button" disabled={mutation.isPending} onClick={close}>Закрыть</button>
           <button type="submit" disabled={mutation.isPending || trip.seats_available <= 0}>
-            {mutation.isPending ? "Бронируем…" : "Подтвердить бронь"}
+            {mutation.isPending ? "Отправляем…" : "Отправить заявку"}
           </button>
         </div>
       </form>

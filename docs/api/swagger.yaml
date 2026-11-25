@@ -1,5 +1,15 @@
 basePath: /api/v1
 definitions:
+  handlers.bookingDecision:
+    properties:
+      decision:
+        enum:
+        - approve
+        - reject
+        type: string
+    required:
+    - decision
+    type: object
   handlers.checkoutResponse:
     properties:
       url:
@@ -7,7 +17,15 @@ definitions:
     type: object
   models.Booking:
     properties:
+      arrival_available:
+        type: boolean
+      arrived_at:
+        type: string
       created_at:
+        type: string
+      driver_rating:
+        type: integer
+      driver_review:
         type: string
       id:
         type: string
@@ -34,6 +52,54 @@ definitions:
     - seats
     - trip_id
     type: object
+  models.BookingRatingRequest:
+    properties:
+      review:
+        maxLength: 1000
+        type: string
+      score:
+        maximum: 5
+        minimum: 1
+        type: integer
+    required:
+    - score
+    type: object
+  models.DriverBalance:
+    properties:
+      available_cents:
+        type: integer
+      currency:
+        type: string
+      locked_cents:
+        type: integer
+      ready_trip_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  models.DriverBooking:
+    properties:
+      decision_available:
+        type: boolean
+      id:
+        type: string
+      passenger_name:
+        type: string
+      passenger_rating:
+        type: number
+      passenger_rating_count:
+        type: integer
+      rating_given:
+        type: integer
+      review_given:
+        type: string
+      seats:
+        type: integer
+      status:
+        type: string
+      trip_id:
+        type: string
+    type: object
   models.Trip:
     properties:
       completed_at:
@@ -42,6 +108,12 @@ definitions:
         type: string
       driver_id:
         type: string
+      driver_name:
+        type: string
+      driver_rating:
+        type: number
+      driver_rating_count:
+        type: integer
       from_city:
         type: string
       id:
@@ -177,8 +249,8 @@ paths:
       - bookings
   /bookings/{id}:
     delete:
-      description: Отменяет действующую бронь владельца в статусе pending и возвращает
-        места.
+      description: Отменяет действующую бронь владельца в статусе requested или pending
+        и возвращает места.
       parameters:
       - description: ID брони (UUID)
         in: path
@@ -209,6 +281,96 @@ paths:
       security:
       - Bearer: []
       summary: Отменить бронь
+      tags:
+      - bookings
+  /bookings/{id}/arrive:
+    post:
+      description: Владелец подтверждённой брони может отметить прибытие после отправления
+        поездки.
+      parameters:
+      - description: ID брони (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Подтвердить прибытие пассажира
+      tags:
+      - bookings
+  /bookings/{id}/decision:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID брони
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: approve или reject
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.bookingDecision'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Принять или отклонить заявку на свою поездку
       tags:
       - bookings
   /bookings/{id}/pay:
@@ -263,6 +425,78 @@ paths:
       security:
       - Bearer: []
       summary: Начать тестовую оплату брони
+      tags:
+      - bookings
+  /bookings/{id}/rating:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID брони
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Оценка от 1 до 5 и необязательный отзыв до 1000 символов
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.BookingRatingRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Оценить другую сторону завершённой брони
+      tags:
+      - bookings
+  /bookings/driver:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.DriverBooking'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Заявки и оценки пассажиров для собственных поездок
       tags:
       - bookings
   /bookings/my:
@@ -359,8 +593,9 @@ paths:
       - trips
   /trips/{id}/complete:
     post:
-      description: Водитель-владелец отмечает поездку завершённой после времени отправления.
-        Повторный запрос сохраняет результат.
+      description: Водитель-владелец отмечает поездку завершённой после времени отправления
+        и подтверждения прибытия всеми пассажирами с подтверждённой бронью. Повторный
+        запрос сохраняет результат.
       parameters:
       - description: ID поездки (UUID)
         in: path
@@ -397,6 +632,32 @@ paths:
       security:
       - Bearer: []
       summary: Завершить поездку
+      tags:
+      - trips
+  /trips/balance:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DriverBalance'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Получить внутренний тестовый баланс водителя
       tags:
       - trips
   /users/:

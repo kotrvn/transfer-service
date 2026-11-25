@@ -14,7 +14,7 @@ var ErrBookingNotFound = errors.New("бронь не найдена")
 var ErrBookingNotPayable = errors.New("бронь недоступна для оплаты")
 
 const bookingAmount = "(t.price_per_seat * b.seats * 100)::bigint"
-const bookingUnexpired = "b.created_at + $2::bigint * interval '1 second' > clock_timestamp()"
+const bookingUnexpired = "COALESCE(b.payment_opened_at, b.created_at) + $2::bigint * interval '1 second' > clock_timestamp()"
 
 func (r *BookingRepository) CheckoutAmount(ctx context.Context, bookingID, passengerID uuid.UUID) (int64, error) {
 	var amount int64
@@ -66,7 +66,7 @@ func (r *BookingRepository) ConfirmPayment(ctx context.Context, bookingID uuid.U
 	}
 
 	result, err := tx.Exec(ctx, `
-		UPDATE bookings b SET status = 'confirmed', stripe_payment_intent = $3
+		UPDATE bookings b SET status = 'confirmed', stripe_payment_intent = $3, paid_amount_cents = $4
 		FROM trips t WHERE t.id = b.trip_id AND b.id = $1
 		AND b.status = 'pending' AND t.completed_at IS NULL AND `+bookingUnexpired+` AND `+bookingAmount+` = $4`,
 		bookingID, int64(models.BookingHold.Seconds()), intent, amount)

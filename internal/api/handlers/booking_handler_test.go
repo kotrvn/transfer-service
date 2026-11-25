@@ -90,3 +90,15 @@ func TestCancelBooking_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusNoContent, rr.Code) // 204 при успехе
 }
+
+func (m *mockBookingRepo) ConfirmArrival(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
+func (m *mockBookingRepo) DriverBookings(context.Context, uuid.UUID) ([]models.DriverBooking, error) {
+	return nil, nil
+}
+func (m *mockBookingRepo) DecideRequest(context.Context, uuid.UUID, uuid.UUID, bool) error {
+	return nil
+}
+func (m *mockBookingRepo) Rate(context.Context, uuid.UUID, uuid.UUID, bool, int, string) error {
+	return nil
+}

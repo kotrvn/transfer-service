@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { type FormEvent, useState } from "react";
 
+import { formatRating } from "../../entities/booking";
 import { listTrips, type Trip, tripDateFormat, tripPriceFormat, tripSearchKey } from "../../entities/trip";
 import { BookTripDialog } from "../../features/book-trip";
 import styles from "./dashboard.module.scss";
@@ -36,7 +37,7 @@ export function PassengerDashboard({ token, userId }: { token: string; userId: s
         <label>Куда<input name="to" maxLength={100} /></label>
         <button type="submit" className={styles.primary}>Найти</button>
       </form>
-      {booked && <div role="status" className={styles.notice}>Бронь создана. <Link href="/bookings">Мои бронирования</Link></div>}
+      {booked && <div role="status" className={styles.notice}>Заявка отправлена водителю. <Link href="/bookings">Мои бронирования</Link></div>}
       <section className={styles.panel} aria-label="Результаты поиска">
         {trips.isPending ? <p role="status">Загружаем поездки…</p>
           : trips.isError && !trips.data ? (
@@ -49,7 +50,7 @@ export function PassengerDashboard({ token, userId }: { token: string; userId: s
               <thead><tr>
                 <th scope="col">Маршрут</th><th scope="col">Отправление</th>
                 <th scope="col">Свободно мест</th><th scope="col">Цена за место</th>
-                <th scope="col">Бронирование</th>
+                <th scope="col">Водитель</th><th scope="col">Бронирование</th>
               </tr></thead>
               <tbody>
                 {availableTrips.map((trip) => (
@@ -58,6 +59,7 @@ export function PassengerDashboard({ token, userId }: { token: string; userId: s
                     <td>{tripDateFormat.format(new Date(trip.departure_at))}</td>
                     <td>{trip.seats_available}</td>
                     <td>{tripPriceFormat.format(trip.price_per_seat)}</td>
+                    <td>{trip.driver_name} · {formatRating(trip.driver_rating, trip.driver_rating_count)}</td>
                     <td>
                       {trip.seats_available > 0 ? (
                         <button type="button" className={styles.action} onClick={() => { setBooked(false); setSelection(trip); }}>
