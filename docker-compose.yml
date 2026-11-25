@@ -30,6 +30,9 @@ services:
       # ВАЖНО: обращаемся к базе по имени сервиса "db", а не localhost!
       - DATABASE_URL=postgres://postgres:secret@db:5432/transfer_db?sslmode=disable
       - JWT_SECRET=super_secret_key_change_me_in_production
+      - STRIPE_TEST_KEY
+      - STRIPE_WEBHOOK_SECRET
+      - STRIPE_RETURN_URL
     depends_on:
       db:
         condition: service_healthy

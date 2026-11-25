@@ -131,7 +131,7 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "Отменяет бронь и возвращает места обратно в поездку. Доступно только для пассажиров.",
+                "description": "Отменяет бронь владельца и возвращает места. Для оплаченной через Stripe брони возвращает 400.",
                 "produces": [
                     "application/json"
                 ],
@@ -172,6 +172,88 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/bookings/{id}/pay": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Создаёт Stripe Checkout для своей действующей брони в статусе pending. Цена рассчитывается на сервере в USD.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bookings"
+                ],
+                "summary": "Начать тестовую оплату брони",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID брони (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.checkoutResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "type": "string"
                         }
@@ -371,9 +453,67 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/webhooks/stripe": {
+            "post": {
+                "description": "Обрабатывает подписанное событие Checkout и подтверждает действующую бронь или запрашивает возврат.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bookings"
+                ],
+                "summary": "Принять событие тестовой оплаты Stripe",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Подпись Stripe",
+                        "name": "Stripe-Signature",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handlers.checkoutResponse": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Booking": {
             "type": "object",
             "properties": {
@@ -383,8 +523,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "paid": {
+                    "type": "boolean"
+                },
                 "passenger_id": {
                     "type": "string"
+                },
+                "payment_available": {
+                    "type": "boolean"
                 },
                 "seats": {
                     "type": "integer"

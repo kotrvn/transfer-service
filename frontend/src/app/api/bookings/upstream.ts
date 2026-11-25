@@ -18,7 +18,7 @@ export async function forwardBooking(request: Request, path: string) {
       signal: AbortSignal.timeout(8_000),
     });
     if (!upstream.ok) {
-      return bookingFailure([400, 401, 403, 404].includes(upstream.status) ? upstream.status : 502);
+      return bookingFailure([400, 401, 403, 404, 409, 503].includes(upstream.status) ? upstream.status : 502);
     }
     if (upstream.status === 204) return new Response(null, { status: 204, headers });
     return Response.json(await upstream.json(), { status: upstream.status, headers });

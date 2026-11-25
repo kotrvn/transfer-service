@@ -6,6 +6,8 @@ type Booking = {
   trip_id: string;
   seats: number;
   status: string;
+  paid: boolean;
+  payment_available: boolean;
 };
 
 const statusLabels = new Map([
@@ -32,6 +34,11 @@ export async function bookTrip(tripId: string, seats: number, token: string) {
 
 export async function cancelBooking(bookingId: string, token: string) {
   await api.delete(`/api/bookings/${bookingId}`, { headers: auth(token) });
+}
+
+export async function startBookingPayment(bookingId: string, token: string) {
+  const { data } = await api.post<{ url: string }>(`/api/bookings/${bookingId}/pay`, undefined, { headers: auth(token) });
+  return data.url;
 }
 
 export function bookingErrorStatus(error: unknown) {

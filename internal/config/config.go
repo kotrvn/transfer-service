@@ -8,9 +8,12 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	JWTSecret   string
+	Port                string
+	DatabaseURL         string
+	JWTSecret           string
+	StripeTestKey       string
+	StripeWebhookSecret string
+	StripeReturnURL     string
 }
 
 func Load() *Config {
@@ -21,9 +24,12 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: getEnv("DATABASE_URL", ""),
-		JWTSecret:   getEnv("JWT_SECRET", ""),
+		Port:                getEnv("PORT", "8080"),
+		DatabaseURL:         getEnv("DATABASE_URL", ""),
+		JWTSecret:           getEnv("JWT_SECRET", ""),
+		StripeTestKey:       getEnv("STRIPE_TEST_KEY", ""),
+		StripeWebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
+		StripeReturnURL:     getEnv("STRIPE_RETURN_URL", "http://localhost:3000/bookings/payment-return"),
 	}
 }
 

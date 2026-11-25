@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 	"transfer-service/internal/models"
+	"transfer-service/internal/payment"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -56,8 +57,8 @@ func (r *BookingRepository) Create(ctx context.Context, booking *models.Booking)
 
 	// 5. Создаем бронь
 	queryInsert := `INSERT INTO bookings (id, trip_id, passenger_id, seats, status) 
-	                VALUES ($1, $2, $3, $4, $5)`
-	_, err = tx.Exec(ctx, queryInsert, booking.ID, booking.TripID, booking.PassengerID, booking.Seats, booking.Status)
+	                VALUES ($1, $2, $3, $4, $5) RETURNING created_at`
+	err = tx.QueryRow(ctx, queryInsert, booking.ID, booking.TripID, booking.PassengerID, booking.Seats, booking.Status).Scan(&booking.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -68,9 +69,9 @@ func (r *BookingRepository) Create(ctx context.Context, booking *models.Booking)
 
 // Получение броней конкретного пассажира
 func (r *BookingRepository) GetByPassengerID(ctx context.Context, passengerID uuid.UUID) ([]*models.Booking, error) {
-	query := `SELECT id, trip_id, passenger_id, seats, status FROM bookings WHERE passenger_id = $1`
+	query := `SELECT b.id, b.trip_id, b.passenger_id, b.seats, b.status, b.created_at, b.stripe_payment_intent IS NOT NULL, b.status = 'pending' AND ` + bookingUnexpired + ` AND ` + bookingAmount + ` BETWEEN $3 AND $4 FROM bookings b JOIN trips t ON t.id = b.trip_id WHERE b.passenger_id = $1`
 
-	rows, err := r.pool.Query(ctx, query, passengerID)
+	rows, err := r.pool.Query(ctx, query, passengerID, int64(models.BookingHold.Seconds()), payment.MinimumAmount, payment.MaximumAmount)
 	if err != nil {
 		return nil, err
 	}
@@ -79,13 +80,13 @@ func (r *BookingRepository) GetByPassengerID(ctx context.Context, passengerID uu
 	var bookings []*models.Booking
 	for rows.Next() {
 		var b models.Booking
-		err := rows.Scan(&b.ID, &b.TripID, &b.PassengerID, &b.Seats, &b.Status)
+		err := rows.Scan(&b.ID, &b.TripID, &b.PassengerID, &b.Seats, &b.Status, &b.CreatedAt, &b.Paid, &b.PaymentAvailable)
 		if err != nil {
 			return nil, err
 		}
 		bookings = append(bookings, &b)
 	}
-	return bookings, nil
+	return bookings, rows.Err()
 }
 
 // Отмена брони (с возвратом мест)
@@ -101,10 +102,15 @@ func (r *BookingRepository) Cancel(ctx context.Context, bookingID uuid.UUID, pas
 	var tripID uuid.UUID
 	var seats int
 	var status string
-	queryBooking := `SELECT trip_id, seats, status FROM bookings WHERE id = $1 AND passenger_id = $2 FOR UPDATE`
-	err = tx.QueryRow(ctx, queryBooking, bookingID, passengerID).Scan(&tripID, &seats, &status)
+	var paid bool
+	queryBooking := `SELECT trip_id, seats, status, stripe_payment_intent IS NOT NULL FROM bookings WHERE id = $1 AND passenger_id = $2 FOR UPDATE`
+	err = tx.QueryRow(ctx, queryBooking, bookingID, passengerID).Scan(&tripID, &seats, &status, &paid)
 	if err != nil {
 		return errors.New("бронь не найдена или не принадлежит вам")
+	}
+
+	if paid {
+		return errors.New("оплаченную бронь нельзя отменить")
 	}
 
 	if status == "cancelled" {

@@ -53,4 +53,20 @@
   font-size: var(--font-size-label);
 
   .error { color: var(--color-error); flex-basis: 100%; }
+
+  .paymentStatus { flex-basis: 100%; }
+}
+
+.panel .pay {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+
+  &:hover { background: var(--color-accent-hover); }
 }

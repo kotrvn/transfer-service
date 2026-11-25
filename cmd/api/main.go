@@ -14,6 +14,8 @@ import (
 	"transfer-service/internal/api/middleware"
 	"transfer-service/internal/config"
 	"transfer-service/internal/db"
+	"transfer-service/internal/models"
+	"transfer-service/internal/payment"
 	"transfer-service/internal/repository"
 	"transfer-service/internal/worker"
 
@@ -47,6 +49,17 @@ func main() {
 	tripHandler := handlers.NewTripHandler(tripRepo)
 	bookingHandler := handlers.NewBookingHandler(bookingRepo)
 
+	var stripe *payment.Stripe
+	if cfg.StripeTestKey != "" || cfg.StripeWebhookSecret != "" {
+		var err error
+		stripe, err = payment.NewStripe(cfg.StripeTestKey, cfg.StripeWebhookSecret, cfg.StripeReturnURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	bookingHandler.PaymentsEnabled = stripe != nil
+	paymentHandler := handlers.NewPaymentHandler(bookingRepo, stripe)
+
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.Logger)
@@ -65,6 +78,7 @@ func main() {
 		// Открытые маршруты
 		r.Post("/users/", userHandler.Register)
 		r.Post("/users/login", userHandler.Login)
+		r.Post("/webhooks/stripe", paymentHandler.Webhook)
 
 		// Публичный список поездок (пассажиры тоже должны их видеть)
 		r.Get("/trips", tripHandler.List)
@@ -76,6 +90,7 @@ func main() {
 			r.Post("/bookings", bookingHandler.Create)
 			r.Get("/bookings/my", bookingHandler.ListMy)
 			r.Delete("/bookings/{id}", bookingHandler.Cancel)
+			r.Post("/bookings/{id}/pay", paymentHandler.Checkout)
 		})
 	})
 
@@ -85,7 +100,7 @@ func main() {
 	defer stop()
 
 	// Запускаем воркер в отдельной горутине (он не блокирует сервер)
-	go worker.StartBookingCleanupWorker(ctx, bookingRepo, 1*time.Minute, 15*time.Minute)
+	go worker.StartBookingCleanupWorker(ctx, bookingRepo, 1*time.Minute, models.BookingHold)
 
 	// --- ЗАПУСК СЕРВЕРА ---
 	addr := fmt.Sprintf(":%s", cfg.Port)

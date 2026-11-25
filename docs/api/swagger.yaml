@@ -1,13 +1,22 @@
 basePath: /api/v1
 definitions:
+  handlers.checkoutResponse:
+    properties:
+      url:
+        type: string
+    type: object
   models.Booking:
     properties:
       created_at:
         type: string
       id:
         type: string
+      paid:
+        type: boolean
       passenger_id:
         type: string
+      payment_available:
+        type: boolean
       seats:
         type: integer
       status:
@@ -162,8 +171,8 @@ paths:
       - bookings
   /bookings/{id}:
     delete:
-      description: Отменяет бронь и возвращает места обратно в поездку. Доступно только
-        для пассажиров.
+      description: Отменяет бронь владельца и возвращает места. Для оплаченной через
+        Stripe брони возвращает 400.
       parameters:
       - description: ID брони (UUID)
         in: path
@@ -194,6 +203,60 @@ paths:
       security:
       - Bearer: []
       summary: Отменить бронь
+      tags:
+      - bookings
+  /bookings/{id}/pay:
+    post:
+      description: Создаёт Stripe Checkout для своей действующей брони в статусе pending.
+        Цена рассчитывается на сервере в USD.
+      parameters:
+      - description: ID брони (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.checkoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+        "502":
+          description: Bad Gateway
+          schema:
+            type: string
+        "503":
+          description: Service Unavailable
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Начать тестовую оплату брони
       tags:
       - bookings
   /bookings/my:
@@ -346,6 +409,40 @@ paths:
       summary: Вход в систему
       tags:
       - users
+  /webhooks/stripe:
+    post:
+      consumes:
+      - application/json
+      description: Обрабатывает подписанное событие Checkout и подтверждает действующую
+        бронь или запрашивает возврат.
+      parameters:
+      - description: Подпись Stripe
+        in: header
+        name: Stripe-Signature
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+        "502":
+          description: Bad Gateway
+          schema:
+            type: string
+        "503":
+          description: Service Unavailable
+          schema:
+            type: string
+      summary: Принять событие тестовой оплаты Stripe
+      tags:
+      - bookings
 securityDefinitions:
   Bearer:
     description: Введите "Bearer " (с пробелом) и затем ваш JWT токен.

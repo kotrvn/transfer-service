@@ -21,7 +21,8 @@ type BookingRepo interface {
 }
 
 type BookingHandler struct {
-	repo BookingRepo
+	repo            BookingRepo
+	PaymentsEnabled bool
 }
 
 func NewBookingHandler(repo BookingRepo) *BookingHandler {
@@ -106,6 +107,12 @@ func (h *BookingHandler) ListMy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.PaymentsEnabled {
+		for _, booking := range bookings {
+			booking.PaymentAvailable = false
+		}
+	}
+
 	if bookings == nil {
 		bookings = []*models.Booking{}
 	}
@@ -116,7 +123,7 @@ func (h *BookingHandler) ListMy(w http.ResponseWriter, r *http.Request) {
 
 // Cancel godoc
 // @Summary Отменить бронь
-// @Description Отменяет бронь и возвращает места обратно в поездку. Доступно только для пассажиров.
+// @Description Отменяет бронь владельца и возвращает места. Для оплаченной через Stripe брони возвращает 400.
 // @Tags bookings
 // @Produce json
 // @Security Bearer
