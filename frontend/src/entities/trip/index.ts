@@ -12,6 +12,7 @@ export type Trip = TripDraft & {
   id: string;
   driver_id: string;
   seats_available: number;
+  completed_at: string | null;
 };
 
 export const driverTripsKey = (driverId: string) => ["trips", "driver", driverId] as const;
@@ -34,4 +35,10 @@ export async function createTrip(draft: TripDraft, token: string) {
     headers: { Authorization: `Bearer ${token}` },
   });
   return data;
+}
+
+export async function completeTrip(tripId: string, token: string) {
+  await api.post(`/api/trips/${tripId}/complete`, undefined, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 }

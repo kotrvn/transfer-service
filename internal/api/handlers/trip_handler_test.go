@@ -17,6 +17,8 @@ import (
 )
 
 // Мок для поездок
+func (m *mockTripRepo) Complete(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
 type mockTripRepo struct {
 	trips []*models.Trip
 }

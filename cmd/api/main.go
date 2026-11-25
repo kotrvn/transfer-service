@@ -87,6 +87,7 @@ func main() {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWTAuth(cfg.JWTSecret))
 			r.Post("/trips", tripHandler.Create)
+			r.Post("/trips/{id}/complete", tripHandler.Complete)
 			r.Post("/bookings", bookingHandler.Create)
 			r.Get("/bookings/my", bookingHandler.ListMy)
 			r.Delete("/bookings/{id}", bookingHandler.Cancel)

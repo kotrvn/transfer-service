@@ -38,7 +38,7 @@ func NewBookingHandler(repo BookingRepo) *BookingHandler {
 // @Security Bearer
 // @Param request body models.BookingCreateRequest true "Данные бронирования"
 // @Success 201 {object} models.Booking
-// @Failure 400,401,403,404,500 {string} string
+// @Failure 400,401,403,404,409,500 {string} string
 // @Router /bookings [post]
 func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 1. Проверяем роль
@@ -73,6 +73,10 @@ func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, repository.ErrTripNotFound) {
 			http.Error(w, "Поездка не найдена", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, repository.ErrTripCompleted) {
+			http.Error(w, "Поездка завершена", http.StatusConflict)
 			return
 		}
 		if errors.Is(err, repository.ErrNotEnoughSeats) {
@@ -123,7 +127,7 @@ func (h *BookingHandler) ListMy(w http.ResponseWriter, r *http.Request) {
 
 // Cancel godoc
 // @Summary Отменить бронь
-// @Description Отменяет бронь владельца и возвращает места. Для оплаченной через Stripe брони возвращает 400.
+// @Description Отменяет действующую бронь владельца в статусе pending и возвращает места.
 // @Tags bookings
 // @Produce json
 // @Security Bearer

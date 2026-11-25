@@ -22,7 +22,11 @@ function PassengerBookings({ token, userId }: { token: string; userId: string })
     queryKey: bookingsKey(userId),
     queryFn: ({ signal }) => listBookings(token, signal),
     retry: 1,
-    refetchInterval: (query) => query.state.data?.some((booking) => booking.status === "pending") ? 5_000 : false,
+        refetchInterval: (query) => {
+      const bookings = query.state.data;
+      if (bookings?.some((booking) => booking.status === "pending")) return 5_000;
+      return bookings?.some((booking) => booking.status === "confirmed") ? 30_000 : false;
+    },
     meta: { private: true },
   });
   const trips = useQuery({
@@ -87,7 +91,7 @@ function PassengerBookings({ token, userId }: { token: string; userId: string })
             <ul className={styles.list}>
               {bookings.data.map((booking) => {
                 const trip = tripsById.get(booking.trip_id);
-                const active = booking.status === "pending" || (booking.status === "confirmed" && !booking.paid);
+                const active = booking.status === "pending";
                 return (
                   <li key={booking.id} className={styles.booking}>
                     <div>

@@ -20,7 +20,7 @@ func (r *BookingRepository) CheckoutAmount(ctx context.Context, bookingID, passe
 	var amount int64
 	var payable bool
 	err := r.pool.QueryRow(ctx, `
-		SELECT `+bookingAmount+`, b.status = 'pending' AND `+bookingUnexpired+`
+		SELECT `+bookingAmount+`, b.status = 'pending' AND t.completed_at IS NULL AND `+bookingUnexpired+`
 		FROM bookings b JOIN trips t ON t.id = b.trip_id
 		WHERE b.id = $1 AND b.passenger_id = $3`,
 		bookingID, int64(models.BookingHold.Seconds()), passengerID).Scan(&amount, &payable)
@@ -41,6 +41,18 @@ func (r *BookingRepository) ConfirmPayment(ctx context.Context, bookingID uuid.U
 	}
 	defer tx.Rollback(ctx)
 
+	// Serialize with the owner's completion while allowing seat updates on the trip.
+	var tripID uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT t.id FROM trips t JOIN bookings b ON b.trip_id = t.id
+		WHERE b.id = $1 FOR KEY SHARE OF t`, bookingID).Scan(&tripID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
 	var paidIntent string
 	err = tx.QueryRow(ctx, `SELECT COALESCE(stripe_payment_intent, '') FROM bookings WHERE id = $1 FOR UPDATE`, bookingID).Scan(&paidIntent)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -56,7 +68,7 @@ func (r *BookingRepository) ConfirmPayment(ctx context.Context, bookingID uuid.U
 	result, err := tx.Exec(ctx, `
 		UPDATE bookings b SET status = 'confirmed', stripe_payment_intent = $3
 		FROM trips t WHERE t.id = b.trip_id AND b.id = $1
-		AND b.status = 'pending' AND `+bookingUnexpired+` AND `+bookingAmount+` = $4`,
+		AND b.status = 'pending' AND t.completed_at IS NULL AND `+bookingUnexpired+` AND `+bookingAmount+` = $4`,
 		bookingID, int64(models.BookingHold.Seconds()), intent, amount)
 	if err != nil {
 		return false, err

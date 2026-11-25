@@ -47,7 +47,7 @@ export function BookTripDialog({ trip, token, userId, onClose, onBooked }: {
       close();
       onBooked();
     } catch (error) {
-      if ([400, 404].includes(bookingErrorStatus(error) ?? 0)) {
+      if ([400, 404, 409].includes(bookingErrorStatus(error) ?? 0)) {
         void queryClient.invalidateQueries({ queryKey: ["trips"] });
       }
     } finally {
@@ -57,7 +57,7 @@ export function BookTripDialog({ trip, token, userId, onClose, onBooked }: {
 
   const status = bookingErrorStatus(mutation.error);
   const error = status === 400 ? "Не удалось забронировать столько мест. Проверьте остаток и попробуйте снова."
-    : status === 404 ? "Эта поездка больше недоступна."
+    : status === 404 || status === 409 ? "Эта поездка больше недоступна."
     : status === 401 || status === 403 ? "Войдите в аккаунт пассажира, чтобы забронировать поездку."
     : "Не удалось создать бронь. Попробуйте ещё раз.";
   const seats = Number(quantity);

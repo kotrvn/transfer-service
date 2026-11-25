@@ -17,7 +17,8 @@ export function PassengerDashboard({ token, userId }: { token: string; userId: s
     queryFn: ({ signal }) => listTrips(from, to, signal),
     retry: 1,
   });
-  const selectedTrip = selection && (trips.data?.find((trip) => trip.id === selection.id) ?? selection);
+  const availableTrips = trips.data?.filter((trip) => !trip.completed_at);
+  const selectedTrip = availableTrips?.find((trip) => trip.id === selection?.id);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,7 +44,7 @@ export function PassengerDashboard({ token, userId }: { token: string; userId: s
               <p role="alert">Не удалось загрузить поездки.</p>
               <button type="button" onClick={() => void trips.refetch()} disabled={trips.isFetching}>Повторить</button>
             </div>
-          ) : trips.data?.length ? (
+          ) : availableTrips?.length ? (
             <table>
               <thead><tr>
                 <th scope="col">Маршрут</th><th scope="col">Отправление</th>
@@ -51,7 +52,7 @@ export function PassengerDashboard({ token, userId }: { token: string; userId: s
                 <th scope="col">Бронирование</th>
               </tr></thead>
               <tbody>
-                {trips.data.map((trip) => (
+                {availableTrips.map((trip) => (
                   <tr key={trip.id}>
                     <th scope="row">{trip.from_city} → {trip.to_city}</th>
                     <td>{tripDateFormat.format(new Date(trip.departure_at))}</td>

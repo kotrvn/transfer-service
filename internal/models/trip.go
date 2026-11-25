@@ -7,14 +7,15 @@ import (
 )
 
 type Trip struct {
-	ID             uuid.UUID `json:"id"`
-	DriverID       uuid.UUID `json:"driver_id"`
-	FromCity       string    `json:"from_city"`
-	ToCity         string    `json:"to_city"`
-	DepartureAt    time.Time `json:"departure_at"`
-	SeatsTotal     int       `json:"seats_total"`
-	SeatsAvailable int       `json:"seats_available"`
-	PricePerSeat   float64   `json:"price_per_seat"`
+	ID             uuid.UUID  `json:"id"`
+	DriverID       uuid.UUID  `json:"driver_id"`
+	FromCity       string     `json:"from_city"`
+	ToCity         string     `json:"to_city"`
+	DepartureAt    time.Time  `json:"departure_at"`
+	SeatsTotal     int        `json:"seats_total"`
+	SeatsAvailable int        `json:"seats_available"`
+	PricePerSeat   float64    `json:"price_per_seat"`
+	CompletedAt    *time.Time `json:"completed_at"`
 }
 
 type TripCreateRequest struct {

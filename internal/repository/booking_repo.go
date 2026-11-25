@@ -16,6 +16,7 @@ import (
 var (
 	ErrTripNotFound   = errors.New("поездка не найдена")
 	ErrNotEnoughSeats = errors.New("недостаточно свободных мест")
+	ErrTripCompleted  = errors.New("поездка завершена")
 )
 
 type BookingRepository struct {
@@ -37,13 +38,17 @@ func (r *BookingRepository) Create(ctx context.Context, booking *models.Booking)
 
 	// 2. Блокируем строку поездки, чтобы другие запросы ждали
 	var seatsAvailable int
-	queryTrip := `SELECT seats_available FROM trips WHERE id = $1 FOR UPDATE`
-	err = tx.QueryRow(ctx, queryTrip, booking.TripID).Scan(&seatsAvailable)
+	var completed bool
+	queryTrip := `SELECT seats_available, completed_at IS NOT NULL FROM trips WHERE id = $1 FOR UPDATE`
+	err = tx.QueryRow(ctx, queryTrip, booking.TripID).Scan(&seatsAvailable, &completed)
 	if err != nil {
 		return ErrTripNotFound // Если строка не найдена
 	}
 
 	// 3. Проверяем, хватает ли мест
+	if completed {
+		return ErrTripCompleted
+	}
 	if seatsAvailable < booking.Seats {
 		return ErrNotEnoughSeats
 	}
@@ -69,7 +74,15 @@ func (r *BookingRepository) Create(ctx context.Context, booking *models.Booking)
 
 // Получение броней конкретного пассажира
 func (r *BookingRepository) GetByPassengerID(ctx context.Context, passengerID uuid.UUID) ([]*models.Booking, error) {
-	query := `SELECT b.id, b.trip_id, b.passenger_id, b.seats, b.status, b.created_at, b.stripe_payment_intent IS NOT NULL, b.status = 'pending' AND ` + bookingUnexpired + ` AND ` + bookingAmount + ` BETWEEN $3 AND $4 FROM bookings b JOIN trips t ON t.id = b.trip_id WHERE b.passenger_id = $1`
+	query := `
+		SELECT b.id, b.trip_id, b.passenger_id, b.seats,
+			CASE WHEN b.status = 'confirmed' AND t.completed_at IS NOT NULL THEN 'completed'
+			     WHEN b.status = 'pending' AND t.completed_at IS NOT NULL THEN 'expired'
+			     ELSE b.status END,
+			b.created_at, b.stripe_payment_intent IS NOT NULL,
+			b.status = 'pending' AND t.completed_at IS NULL AND ` + bookingUnexpired + `
+			AND ` + bookingAmount + ` BETWEEN $3 AND $4
+		FROM bookings b JOIN trips t ON t.id = b.trip_id WHERE b.passenger_id = $1`
 
 	rows, err := r.pool.Query(ctx, query, passengerID, int64(models.BookingHold.Seconds()), payment.MinimumAmount, payment.MaximumAmount)
 	if err != nil {
@@ -98,23 +111,27 @@ func (r *BookingRepository) Cancel(ctx context.Context, bookingID uuid.UUID, pas
 	}
 	defer tx.Rollback(ctx)
 
-	// 2. Ищем бронь и блокируем её (FOR UPDATE)
+	// Сначала блокируем завершение поездки, затем саму бронь.
 	var tripID uuid.UUID
-	var seats int
-	var status string
-	var paid bool
-	queryBooking := `SELECT trip_id, seats, status, stripe_payment_intent IS NOT NULL FROM bookings WHERE id = $1 AND passenger_id = $2 FOR UPDATE`
-	err = tx.QueryRow(ctx, queryBooking, bookingID, passengerID).Scan(&tripID, &seats, &status, &paid)
+	err = tx.QueryRow(ctx, `
+		SELECT t.id FROM trips t JOIN bookings b ON b.trip_id = t.id
+		WHERE b.id = $1 AND b.passenger_id = $2 FOR KEY SHARE OF t`, bookingID, passengerID).Scan(&tripID)
 	if err != nil {
 		return errors.New("бронь не найдена или не принадлежит вам")
 	}
 
-	if paid {
-		return errors.New("оплаченную бронь нельзя отменить")
+	var seats int
+	var cancellable bool
+	queryBooking := `
+		SELECT b.seats, b.status = 'pending' AND t.completed_at IS NULL AND ` + bookingUnexpired + `
+		FROM bookings b JOIN trips t ON t.id = b.trip_id
+		WHERE b.id = $1 FOR UPDATE OF b`
+	err = tx.QueryRow(ctx, queryBooking, bookingID, int64(models.BookingHold.Seconds())).Scan(&seats, &cancellable)
+	if err != nil {
+		return errors.New("бронь не найдена или не принадлежит вам")
 	}
-
-	if status == "cancelled" {
-		return errors.New("бронь уже отменена")
+	if !cancellable {
+		return errors.New("отменить можно только действующую бронь, ожидающую оплаты")
 	}
 
 	// 3. Меняем статус брони
@@ -145,24 +162,24 @@ func (r *BookingRepository) CleanupExpired(ctx context.Context, expireAfter time
 	// Передаем время как параметр, чтобы легко менять в тестах
 	intervalStr := fmt.Sprintf("%d seconds", int(expireAfter.Seconds()))
 	query := `
-		UPDATE bookings 
-		SET status = 'cancelled' 
-		WHERE status = 'pending' AND created_at < NOW() - $1::interval
-		RETURNING trip_id, seats
+		UPDATE bookings b SET status = 'expired'
+		FROM trips t WHERE t.id = b.trip_id AND b.status = 'pending'
+		AND (b.created_at <= NOW() - $1::interval OR t.completed_at IS NOT NULL)
+		RETURNING b.trip_id, b.seats
 	`
 	rows, err := tx.Query(ctx, query, intervalStr)
 	if err != nil {
 		return 0, err
 	}
 
-	type cancelled struct {
+	type expired struct {
 		tripID uuid.UUID
 		seats  int
 	}
-	var items []cancelled
+	var items []expired
 
 	for rows.Next() {
-		var c cancelled
+		var c expired
 		if err := rows.Scan(&c.tripID, &c.seats); err != nil {
 			rows.Close()
 			return 0, err
@@ -170,6 +187,9 @@ func (r *BookingRepository) CleanupExpired(ctx context.Context, expireAfter time
 		items = append(items, c)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
 
 	for _, c := range items {
 		_, err := tx.Exec(ctx, `UPDATE trips SET seats_available = seats_available + $1 WHERE id = $2`, c.seats, c.tripID)

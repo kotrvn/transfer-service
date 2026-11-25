@@ -29,7 +29,7 @@ func StartBookingCleanupWorker(ctx context.Context, cleaner BookingCleaner, inte
 				continue
 			}
 			if count > 0 {
-				log.Printf("🧹 Воркер: успешно отменено и возвращено мест: %d", count)
+				log.Printf("🧹 Воркер: закрыто броней с возвратом мест: %d", count)
 			}
 		}
 	}

@@ -69,6 +69,12 @@
                             "type": "string"
                         }
                     },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -125,7 +131,7 @@
                         "Bearer": []
                     }
                 ],
-                "description": "Отменяет бронь владельца и возвращает места. Для оплаченной через Stripe брони возвращает 400.",
+                "description": "Отменяет действующую бронь владельца в статусе pending и возвращает места.",
                 "produces": [
                     "application/json"
                 ],
@@ -359,6 +365,70 @@
                 }
             }
         },
+        "/trips/{id}/complete": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Водитель-владелец отмечает поездку завершённой после времени отправления. Повторный запрос сохраняет результат.",
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Завершить поездку",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID поездки (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/users/": {
             "post": {
                 "description": "Создает нового пользователя (водителя или пассажира).",
@@ -555,6 +625,9 @@
         "models.Trip": {
             "type": "object",
             "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
                 "departure_at": {
                     "type": "string"
                 },

@@ -1,22 +1,43 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
+import { useEffect, useState } from "react";
 
 import { useSession } from "../../entities/session";
-import { driverTripsKey, listDriverTrips, tripDateFormat, tripPriceFormat } from "../../entities/trip";
+import { completeTrip, driverTripsKey, listDriverTrips, tripDateFormat, tripPriceFormat } from "../../entities/trip";
 import { CreateTripDialog } from "../../features/create-trip";
 import styles from "./dashboard.module.scss";
 import { PassengerDashboard } from "./passenger";
 
 function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
   const [creating, setCreating] = useState(false);
+  const [confirming, setConfirming] = useState<string>();
+  const [now, setNow] = useState(Date.now);
+  const queryClient = useQueryClient();
   const trips = useQuery({
     queryKey: driverTripsKey(driverId),
     queryFn: ({ signal }) => listDriverTrips(driverId, signal),
     retry: 1,
     meta: { private: true },
   });
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const completion = useMutation({
+    mutationFn: (id: string) => completeTrip(id, token),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["trips"] }),
+        queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+      ]);
+      setConfirming(undefined);
+    },
+  });
+  const completeError = isAxiosError(completion.error) && completion.error.response?.status === 409
+    ? "Поездку можно завершить после времени отправления."
+    : "Не удалось завершить поездку. Попробуйте ещё раз.";
 
   return (
     <>
@@ -38,6 +59,7 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
                 <th scope="col">Отправление</th>
                 <th scope="col">Свободно мест</th>
                 <th scope="col">Цена за место</th>
+                <th scope="col">Статус и действия</th>
               </tr></thead>
               <tbody>
                 {trips.data.map((trip) => (
@@ -46,6 +68,24 @@ function DriverTrips({ driverId, token }: { driverId: string; token: string }) {
                     <td>{tripDateFormat.format(new Date(trip.departure_at))}</td>
                     <td>{trip.seats_available} / {trip.seats_total}</td>
                     <td>{tripPriceFormat.format(trip.price_per_seat)}</td>
+                    <td>
+                      {trip.completed_at ? "Завершена"
+                        : confirming === trip.id ? (
+                          <div className={styles.tripActions}>
+                            <span>Подтвердить завершение?</span>
+                            <button className={styles.action} type="button" disabled={completion.isPending}
+                              onClick={() => completion.mutate(trip.id)}>
+                              {completion.isPending ? "Завершаем…" : "Да, завершить"}
+                            </button>
+                            <button className={styles.action} type="button" disabled={completion.isPending}
+                              onClick={() => { setConfirming(undefined); completion.reset(); }}>Назад</button>
+                            {completion.isError && <span role="alert">{completeError}</span>}
+                          </div>
+                        ) : Date.parse(trip.departure_at) <= now ? (
+                          <button className={styles.action} type="button" disabled={completion.isPending}
+                            onClick={() => { completion.reset(); setConfirming(trip.id); }}>Завершить поездку</button>
+                        ) : "Запланирована"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

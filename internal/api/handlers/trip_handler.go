@@ -3,15 +3,19 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"transfer-service/internal/api/middleware"
 	"transfer-service/internal/models"
+	"transfer-service/internal/repository"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 type TripRepo interface {
+	Complete(ctx context.Context, tripID, driverID uuid.UUID) error
 	Create(ctx context.Context, trip *models.Trip) error
 	List(ctx context.Context, fromCity, toCity string) ([]*models.Trip, error)
 }
@@ -103,4 +107,43 @@ func (h *TripHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(trips)
+}
+
+// Complete godoc
+// @Summary Завершить поездку
+// @Description Водитель-владелец отмечает поездку завершённой после времени отправления. Повторный запрос сохраняет результат.
+// @Tags trips
+// @Security Bearer
+// @Param id path string true "ID поездки (UUID)"
+// @Success 204 "No Content"
+// @Failure 400,401,403,404,409,500 {string} string
+// @Router /trips/{id}/complete [post]
+func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
+	role, _ := r.Context().Value(middleware.UserRoleKey).(string)
+	if role != "driver" {
+		http.Error(w, "Только водитель может завершить поездку", http.StatusForbidden)
+		return
+	}
+	tripID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Неверный ID поездки", http.StatusBadRequest)
+		return
+	}
+	userID, _ := r.Context().Value(middleware.UserIDKey).(string)
+	driverID, err := uuid.Parse(userID)
+	if err != nil {
+		http.Error(w, "Неверный ID водителя", http.StatusUnauthorized)
+		return
+	}
+	err = h.repo.Complete(r.Context(), tripID, driverID)
+	switch {
+	case errors.Is(err, repository.ErrTripNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, repository.ErrTripNotDeparted):
+		http.Error(w, err.Error(), http.StatusConflict)
+	case err != nil:
+		http.Error(w, "Не удалось завершить поездку", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
 }

@@ -156,4 +156,52 @@ func TestBookingPaymentPostgres(t *testing.T) {
 			t.Errorf("unexpected payment flags: %+v", booking)
 		}
 	}
+
+	pending := create()
+	tripRepo := NewTripRepository(pool)
+	if err := tripRepo.Complete(ctx, trip, passenger); err != ErrTripNotFound {
+		t.Fatalf("complete another driver's trip: %v", err)
+	}
+	exec(pool, "UPDATE trips SET departure_at = NOW() + interval '1 hour' WHERE id = $1", trip)
+	if err := tripRepo.Complete(ctx, trip, driver); err != ErrTripNotDeparted {
+		t.Fatalf("complete before departure: %v", err)
+	}
+	exec(pool, "UPDATE trips SET departure_at = NOW() - interval '1 hour' WHERE id = $1", trip)
+	for i := 0; i < 2; i++ {
+		if err := tripRepo.Complete(ctx, trip, driver); err != nil {
+			t.Fatalf("complete trip: %v", err)
+		}
+	}
+	if err := repo.Create(ctx, &models.Booking{ID: uuid.New(), TripID: trip, PassengerID: passenger, Seats: 1, Status: "pending"}); err != ErrTripCompleted {
+		t.Fatalf("book completed trip: %v", err)
+	}
+	if _, err := repo.CheckoutAmount(ctx, pending, passenger); err != ErrBookingNotPayable {
+		t.Fatalf("pay for completed trip: %v", err)
+	}
+	if err := repo.Cancel(ctx, pending, passenger); err == nil {
+		t.Fatal("cancelled pending booking after trip completion")
+	}
+	confirm(pending, "pi_after_trip", 2468, false)
+	confirm(id, "pi_paid", 2468, true)
+	bookings, err = repo.GetByPassengerID(ctx, passenger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statuses := make(map[uuid.UUID]string)
+	for _, booking := range bookings {
+		statuses[booking.ID] = booking.Status
+	}
+	if statuses[id] != "completed" || statuses[pending] != "expired" || statuses[expired] != "expired" {
+		t.Fatalf("statuses after completion: %v", statuses)
+	}
+	if count, err := repo.CleanupExpired(ctx, models.BookingHold); err != nil || count != 1 {
+		t.Fatalf("cleanup after trip completion: %d, %v", count, err)
+	}
+	if count, err := repo.CleanupExpired(ctx, models.BookingHold); err != nil || count != 0 {
+		t.Fatalf("repeated cleanup after trip completion: %d, %v", count, err)
+	}
+	trips, err := tripRepo.List(ctx, "", "")
+	if err != nil || len(trips) != 1 || trips[0].CompletedAt == nil || trips[0].SeatsAvailable != wantSeats {
+		t.Fatalf("completed trip result: %+v, %v", trips, err)
+	}
 }

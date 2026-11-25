@@ -36,6 +36,8 @@ definitions:
     type: object
   models.Trip:
     properties:
+      completed_at:
+        type: string
       departure_at:
         type: string
       driver_id:
@@ -160,6 +162,10 @@ paths:
           description: Not Found
           schema:
             type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
         "500":
           description: Internal Server Error
           schema:
@@ -171,8 +177,8 @@ paths:
       - bookings
   /bookings/{id}:
     delete:
-      description: Отменяет бронь владельца и возвращает места. Для оплаченной через
-        Stripe брони возвращает 400.
+      description: Отменяет действующую бронь владельца в статусе pending и возвращает
+        места.
       parameters:
       - description: ID брони (UUID)
         in: path
@@ -349,6 +355,48 @@ paths:
       security:
       - Bearer: []
       summary: Создать поездку
+      tags:
+      - trips
+  /trips/{id}/complete:
+    post:
+      description: Водитель-владелец отмечает поездку завершённой после времени отправления.
+        Повторный запрос сохраняет результат.
+      parameters:
+      - description: ID поездки (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+        "409":
+          description: Conflict
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - Bearer: []
+      summary: Завершить поездку
       tags:
       - trips
   /users/:

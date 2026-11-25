@@ -11,9 +11,11 @@ type Booking = {
 };
 
 const statusLabels = new Map([
-  ["pending", "Ожидает подтверждения"],
+  ["pending", "Ожидает оплаты"],
   ["confirmed", "Подтверждена"],
   ["cancelled", "Отменена"],
+  ["expired", "Срок оплаты истёк"],
+  ["completed", "Поездка завершена"],
 ]);
 
 export const bookingStatusLabel = (status: string) => statusLabels.get(status) ?? status;
